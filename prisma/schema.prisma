@@ -1,0 +1,643 @@
+// Prisma Schema — Manmec IA
+// Prisma 7: URL configurada en prisma.config.ts
+// Escrito manualmente desde las migraciones SQL (001 + 002)
+// No se usa db pull porque el puerto 5432 no está expuesto externamente
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMs
+// ============================================================
+
+enum ManmecUserRole {
+  COMPANY_ADMIN
+  MANAGER
+  SUPERVISOR
+  MECHANIC
+
+  @@map("manmec_user_role")
+}
+
+enum ManmecOtPriority {
+  P1
+  P2
+  P3
+
+  @@map("manmec_ot_priority")
+}
+
+enum ManmecOtStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  PAUSED
+  COMPLETED
+  CANCELLED
+
+  @@map("manmec_ot_status")
+}
+
+enum ManmecOtType {
+  CORRECTIVE
+  PREVENTIVE
+
+  @@map("manmec_ot_type")
+}
+
+enum ManmecMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  TRANSFER
+
+  @@map("manmec_movement_type")
+}
+
+enum ManmecActionSeverity {
+  info
+  warning
+  critical
+
+  @@map("manmec_action_severity")
+}
+
+// ============================================================
+// MODELOS
+// ============================================================
+
+// -----------------------------------------------------------
+// Tenant / Empresa
+// -----------------------------------------------------------
+model ManmecOrganization {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  rut             String?   @unique
+  logo_url        String?
+  plan            String    @default("free")
+  allowed_domains String[]  @default([])
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime? @db.Timestamptz(6)
+
+  users                  ManmecUser[]
+  supervisor_assignments ManmecSupervisorAssignment[]
+  service_stations       ManmecServiceStation[]
+  work_orders            ManmecWorkOrder[]
+  inventory_items        ManmecInventoryItem[]
+  route_plans            ManmecRoutePlan[]
+  notifications          ManmecNotification[]
+  ai_conversations       ManmecAiConversation[]
+  ai_actions             ManmecAiAction[]
+  voice_commands         ManmecVoiceCommand[]
+  vehicles               ManmecVehicle[]
+  tools                  ManmecTool[]
+  shipments              ManmecShipment[]
+
+  @@map("manmec_organizations")
+}
+
+// -----------------------------------------------------------
+// Usuario (vinculado 1:1 con Supabase Auth / better-auth)
+// -----------------------------------------------------------
+model ManmecUser {
+  id              String          @id @db.Uuid
+  organization_id String?         @db.Uuid
+  role            ManmecUserRole?
+  full_name       String          @default("")
+  phone           String?
+  avatar_url      String?
+  auth_provider      String          @default("google")
+  is_active          Boolean         @default(true)
+  onboarding_status  String          @default("pending")  // pending | complete
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime        @default(now()) @db.Timestamptz(6)
+
+  organization               ManmecOrganization?          @relation(fields: [organization_id], references: [id])
+  supervised_assignments     ManmecSupervisorAssignment[] @relation("Supervisor")
+  mechanic_assignments       ManmecSupervisorAssignment[] @relation("Mechanic")
+  created_work_orders        ManmecWorkOrder[]            @relation("CreatedBy")
+  assigned_work_orders       ManmecWorkOrder[]            @relation("AssignedTo")
+  work_order_photos          ManmecWorkOrderPhoto[]
+  inventory_movements        ManmecInventoryMovement[]
+  route_plans                ManmecRoutePlan[]
+  notifications              ManmecNotification[]
+  ai_conversations           ManmecAiConversation[]
+  acknowledged_ai_actions    ManmecAiAction[]
+  voice_commands             ManmecVoiceCommand[]
+  wo_assignments             ManmecWorkOrderAssignment[]  @relation("MechanicAssignment")
+  wo_assignments_by          ManmecWorkOrderAssignment[]  @relation("AssignedByUser")
+  timeline_entries           ManmecWorkOrderTimeline[]
+  assigned_tools             ManmecTool[]
+
+  @@map("manmec_users")
+}
+
+// -----------------------------------------------------------
+// Asignaciones Supervisor → Mecánico
+// -----------------------------------------------------------
+model ManmecSupervisorAssignment {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String   @db.Uuid
+  supervisor_id   String   @db.Uuid
+  mechanic_id     String   @db.Uuid
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  supervisor   ManmecUser         @relation("Supervisor", fields: [supervisor_id], references: [id], onDelete: Cascade)
+  mechanic     ManmecUser         @relation("Mechanic", fields: [mechanic_id], references: [id], onDelete: Cascade)
+
+  @@unique([supervisor_id, mechanic_id])
+  @@map("manmec_supervisor_assignments")
+}
+
+// -----------------------------------------------------------
+// Estaciones de Servicio
+// -----------------------------------------------------------
+model ManmecServiceStation {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String    @db.Uuid
+  name            String
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  contact_name    String?
+  contact_phone   String?
+  is_active       Boolean   @default(true)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime? @db.Timestamptz(6)
+
+  organization        ManmecOrganization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  work_orders         ManmecWorkOrder[]
+  inventory_stock     ManmecInventoryStock[]
+  inventory_movements ManmecInventoryMovement[]
+  route_stops         ManmecRouteStop[]
+
+  @@map("manmec_service_stations")
+}
+
+// -----------------------------------------------------------
+// Órdenes de Trabajo
+// -----------------------------------------------------------
+model ManmecWorkOrder {
+  id                       String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id          String           @db.Uuid
+  station_id               String           @db.Uuid
+  created_by               String           @db.Uuid
+  assigned_to              String?          @db.Uuid
+  vehicle_id               String?          @db.Uuid
+  code                     String?          @unique
+  title                    String
+  description              String?
+  priority                 ManmecOtPriority @default(P3)
+  status                   ManmecOtStatus   @default(PENDING)
+  ot_type                  ManmecOtType     @default(CORRECTIVE)
+  recurrence_interval_days Int?
+  scheduled_date           DateTime?        @db.Date
+  started_at               DateTime?        @db.Timestamptz(6)
+  completed_at             DateTime?        @db.Timestamptz(6)
+  source                   String           @default("manual")
+  created_at               DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime         @default(now()) @db.Timestamptz(6)
+  deleted_at               DateTime?        @db.Timestamptz(6)
+
+  organization        ManmecOrganization          @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  station             ManmecServiceStation        @relation(fields: [station_id], references: [id])
+  creator             ManmecUser                  @relation("CreatedBy", fields: [created_by], references: [id])
+  assignee            ManmecUser?                 @relation("AssignedTo", fields: [assigned_to], references: [id])
+  vehicle             ManmecVehicle?              @relation(fields: [vehicle_id], references: [id])
+  tasks               ManmecWorkOrderTask[]
+  materials           ManmecWorkOrderMaterial[]
+  photos              ManmecWorkOrderPhoto[]
+  assignments         ManmecWorkOrderAssignment[]
+  timeline            ManmecWorkOrderTimeline[]
+  route_stops         ManmecRouteStop[]
+  inventory_movements ManmecInventoryMovement[]
+
+  @@index([organization_id])
+  @@index([assigned_to, status, scheduled_date])
+  @@index([station_id, status])
+  @@map("manmec_work_orders")
+}
+
+// -----------------------------------------------------------
+// Flota de Vehículos
+// -----------------------------------------------------------
+model ManmecVehicle {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String    @db.Uuid
+  plate           String    @unique
+  brand           String?
+  model           String?
+  year            Int?
+  vin             String?
+  last_mileage    Decimal   @default(0)
+  is_active       Boolean   @default(true)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime? @db.Timestamptz(6)
+
+  organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  work_orders  ManmecWorkOrder[]
+  tools        ManmecTool[]
+
+  @@map("manmec_vehicles")
+}
+
+// -----------------------------------------------------------
+// Catastro de Herramientas
+// -----------------------------------------------------------
+model ManmecTool {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String    @db.Uuid
+  serial_number   String    @unique
+  name            String
+  brand           String?
+  model           String?
+  category        String?
+  status          String    @default("available")
+  assigned_user_id String?  @db.Uuid
+  assigned_vehicle_id String? @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime? @db.Timestamptz(6)
+
+  organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user         ManmecUser?        @relation(fields: [assigned_user_id], references: [id])
+  vehicle      ManmecVehicle?     @relation(fields: [assigned_vehicle_id], references: [id])
+
+  @@map("manmec_tools")
+}
+
+// -----------------------------------------------------------
+// Recepción de Camiones / Guías de Despacho
+// -----------------------------------------------------------
+model ManmecShipment {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id      String   @db.Uuid
+  supplier_name        String?
+  dispatch_note_number String?
+  dispatch_note_url    String?
+  ocr_data             Json?
+  status               String   @default("PENDING")
+  received_by          String?  @db.Uuid
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @default(now()) @db.Timestamptz(6)
+
+  organization ManmecOrganization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  items        ManmecShipmentItem[]
+
+  @@map("manmec_shipments")
+}
+
+model ManmecShipmentItem {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shipment_id  String  @db.Uuid
+  item_id      String  @db.Uuid
+  expected_qty Decimal
+  received_qty Decimal @default(0)
+  unit_price   Decimal?
+  notes        String?
+
+  shipment ManmecShipment      @relation(fields: [shipment_id], references: [id], onDelete: Cascade)
+  item     ManmecInventoryItem @relation(fields: [item_id], references: [id])
+
+  @@map("manmec_shipment_items")
+}
+
+// -----------------------------------------------------------
+// Tareas / Checklist de OT
+// -----------------------------------------------------------
+model ManmecWorkOrderTask {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  work_order_id String    @db.Uuid
+  description   String
+  is_completed  Boolean   @default(false)
+  completed_at  DateTime? @db.Timestamptz(6)
+  sort_order    Int       @default(0)
+
+  work_order ManmecWorkOrder @relation(fields: [work_order_id], references: [id], onDelete: Cascade)
+
+  @@map("manmec_work_order_tasks")
+}
+
+// -----------------------------------------------------------
+// Materiales usados en OT (dispara descuento de stock vía trigger)
+// -----------------------------------------------------------
+model ManmecWorkOrderMaterial {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  work_order_id String   @db.Uuid
+  item_id       String   @db.Uuid
+  quantity      Decimal
+  notes         String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  work_order ManmecWorkOrder     @relation(fields: [work_order_id], references: [id], onDelete: Cascade)
+  item       ManmecInventoryItem @relation(fields: [item_id], references: [id])
+
+  @@map("manmec_work_order_materials")
+}
+
+// -----------------------------------------------------------
+// Fotos de OT — DEPRECADO, usar ManmecWorkOrderTimeline
+// -----------------------------------------------------------
+model ManmecWorkOrderPhoto {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  work_order_id String   @db.Uuid
+  uploaded_by   String   @db.Uuid
+  storage_path  String
+  caption       String?
+  photo_type    String   @default("progress")
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  work_order ManmecWorkOrder @relation(fields: [work_order_id], references: [id], onDelete: Cascade)
+  uploader   ManmecUser      @relation(fields: [uploaded_by], references: [id])
+
+  @@map("manmec_work_order_photos")
+}
+
+// -----------------------------------------------------------
+// Equipo de mecánicos por OT (N mecánicos por OT)
+// -----------------------------------------------------------
+model ManmecWorkOrderAssignment {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  work_order_id String   @db.Uuid
+  mechanic_id   String   @db.Uuid
+  role          String   @default("support")
+  assigned_at   DateTime @default(now()) @db.Timestamptz(6)
+  assigned_by   String?  @db.Uuid
+
+  work_order ManmecWorkOrder @relation(fields: [work_order_id], references: [id], onDelete: Cascade)
+  mechanic   ManmecUser      @relation("MechanicAssignment", fields: [mechanic_id], references: [id], onDelete: Cascade)
+  assigner   ManmecUser?     @relation("AssignedByUser", fields: [assigned_by], references: [id])
+
+  @@unique([work_order_id, mechanic_id])
+  @@index([mechanic_id])
+  @@map("manmec_work_order_assignments")
+}
+
+// -----------------------------------------------------------
+// Timeline / Historial de OT
+// Fotos como URLs de DigitalOcean Spaces (no binarios en Supabase)
+// -----------------------------------------------------------
+model ManmecWorkOrderTimeline {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  work_order_id       String   @db.Uuid
+  user_id             String   @db.Uuid
+  entry_type          String   @default("progress")
+  content             String?
+  photo_url           String?
+  photo_thumbnail_url String?
+  metadata            Json?
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+
+  work_order ManmecWorkOrder @relation(fields: [work_order_id], references: [id], onDelete: Cascade)
+  user       ManmecUser      @relation(fields: [user_id], references: [id])
+
+  @@index([work_order_id, created_at])
+  @@map("manmec_work_order_timeline")
+}
+
+// -----------------------------------------------------------
+// Inventario: Catálogo
+// -----------------------------------------------------------
+model ManmecInventoryItem {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String   @db.Uuid
+  sku             String?
+  barcode         String?
+  barcode_type    String   @default("CODE128")
+  name            String
+  description     String?
+  unit            String   @default("unidad")
+  min_stock       Decimal  @default(0)
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  organization ManmecOrganization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  stock        ManmecInventoryStock[]
+  movements    ManmecInventoryMovement[]
+  wo_materials ManmecWorkOrderMaterial[]
+  shipment_items ManmecShipmentItem[]
+
+  @@index([organization_id])
+  @@map("manmec_inventory_items")
+}
+
+// -----------------------------------------------------------
+// Inventario: Stock por estación (solo actualizable vía trigger)
+// -----------------------------------------------------------
+model ManmecInventoryStock {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id    String   @db.Uuid
+  station_id String   @db.Uuid
+  quantity   Decimal  @default(0)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  item    ManmecInventoryItem  @relation(fields: [item_id], references: [id], onDelete: Cascade)
+  station ManmecServiceStation @relation(fields: [station_id], references: [id], onDelete: Cascade)
+
+  @@unique([item_id, station_id])
+  @@map("manmec_inventory_stock")
+}
+
+// -----------------------------------------------------------
+// Inventario: Movimientos (inmutable — solo INSERT)
+// -----------------------------------------------------------
+model ManmecInventoryMovement {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id       String             @db.Uuid
+  station_id    String             @db.Uuid
+  user_id       String             @db.Uuid
+  work_order_id String?            @db.Uuid
+  type          ManmecMovementType
+  quantity      Decimal
+  reason        String?
+  created_at    DateTime           @default(now()) @db.Timestamptz(6)
+
+  item       ManmecInventoryItem  @relation(fields: [item_id], references: [id])
+  station    ManmecServiceStation @relation(fields: [station_id], references: [id])
+  user       ManmecUser           @relation(fields: [user_id], references: [id])
+  work_order ManmecWorkOrder?     @relation(fields: [work_order_id], references: [id])
+
+  @@map("manmec_inventory_movements")
+}
+
+// -----------------------------------------------------------
+// Rutas: Plan diario
+// -----------------------------------------------------------
+model ManmecRoutePlan {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String   @db.Uuid
+  mechanic_id     String   @db.Uuid
+  plan_date       DateTime @db.Date
+  status          String   @default("PLANNED")
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  mechanic     ManmecUser         @relation(fields: [mechanic_id], references: [id])
+  stops        ManmecRouteStop[]
+
+  @@unique([mechanic_id, plan_date])
+  @@index([organization_id])
+  @@map("manmec_route_plans")
+}
+
+// -----------------------------------------------------------
+// Rutas: Paradas
+// -----------------------------------------------------------
+model ManmecRouteStop {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  route_plan_id     String    @db.Uuid
+  work_order_id     String    @db.Uuid
+  station_id        String    @db.Uuid
+  sort_order        Int
+  estimated_arrival DateTime? @db.Timestamptz(6)
+  actual_arrival    DateTime? @db.Timestamptz(6)
+  actual_departure  DateTime? @db.Timestamptz(6)
+  status            String    @default("PENDING")
+
+  route_plan ManmecRoutePlan      @relation(fields: [route_plan_id], references: [id], onDelete: Cascade)
+  work_order ManmecWorkOrder      @relation(fields: [work_order_id], references: [id])
+  station    ManmecServiceStation @relation(fields: [station_id], references: [id])
+
+  @@map("manmec_route_stops")
+}
+
+// -----------------------------------------------------------
+// Notificaciones en tiempo real (Supabase Realtime)
+// -----------------------------------------------------------
+model ManmecNotification {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String   @db.Uuid
+  user_id         String   @db.Uuid
+  type            String
+  title           String
+  body            String?
+  payload         Json?
+  is_read         Boolean  @default(false)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user         ManmecUser         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, is_read, created_at])
+  @@map("manmec_notifications")
+}
+
+// -----------------------------------------------------------
+// IA: Conversaciones (Text-to-SQL para MANAGER/SUPERVISOR)
+// -----------------------------------------------------------
+model ManmecAiConversation {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String   @db.Uuid
+  user_id         String   @db.Uuid
+  title           String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user         ManmecUser         @relation(fields: [user_id], references: [id])
+  messages     ManmecAiMessage[]
+
+  @@map("manmec_ai_conversations")
+}
+
+// -----------------------------------------------------------
+// IA: Mensajes (role: user | assistant | system)
+// metadata: tokens, modelo, latencia, sql_generated
+// -----------------------------------------------------------
+model ManmecAiMessage {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String   @db.Uuid
+  role            String
+  content         String
+  metadata        Json?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  conversation ManmecAiConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@map("manmec_ai_messages")
+}
+
+// -----------------------------------------------------------
+// IA: Acciones proactivas del Dashboard IA
+// -----------------------------------------------------------
+model ManmecAiAction {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String               @db.Uuid
+  action_type         String
+  title               String
+  description         String?
+  severity            ManmecActionSeverity @default(info)
+  related_entity_type String?
+  related_entity_id   String?              @db.Uuid
+  is_acknowledged     Boolean              @default(false)
+  acknowledged_by     String?              @db.Uuid
+  created_at          DateTime             @default(now()) @db.Timestamptz(6)
+
+  organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  acknowledger ManmecUser?        @relation(fields: [acknowledged_by], references: [id])
+
+  @@map("manmec_ai_actions")
+}
+
+// -----------------------------------------------------------
+// IA: Comandos de voz → transcripción → OT
+// audio en DigitalOcean Spaces, no en Supabase
+// -----------------------------------------------------------
+model ManmecVoiceCommand {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String   @db.Uuid
+  user_id             String   @db.Uuid
+  audio_storage_path  String?
+  transcription       String?
+  ai_interpretation   Json?
+  resulting_action    String?  @default("NONE")
+  resulting_entity_id String?  @db.Uuid
+  status              String   @default("PROCESSING")
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+
+  organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user         ManmecUser         @relation(fields: [user_id], references: [id])
+
+  @@map("manmec_voice_commands")
+}
+
+// -----------------------------------------------------------
+// Dominios de email públicos (referencia para onboarding)
+// gmail.com, hotmail.com, etc. → no son corporativos
+// -----------------------------------------------------------
+model ManmecPublicEmailDomain {
+  domain String @id
+
+  @@map("manmec_public_email_domains")
+}
+
+// -----------------------------------------------------------
+// Auditoría inmutable (solo INSERT vía triggers de PostgreSQL)
+// -----------------------------------------------------------
+model ManmecAuditLog {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String?   @db.Uuid
+  user_id         String?   @db.Uuid
+  action          String
+  table_name      String
+  record_id       String?   @db.Uuid
+  old_data        Json?
+  new_data        Json?
+  ip_address      String?
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([table_name, record_id, created_at])
+  @@map("manmec_audit_log")
+}
