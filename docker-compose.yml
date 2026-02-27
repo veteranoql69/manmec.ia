@@ -3,7 +3,10 @@ services:
     image: ghcr.io/veteranoql69/manmec.ia:latest
     container_name: manmec-prod
     ports:
-      - "4000:3000"
+      - target: 3000
+        published: 4000
+        protocol: tcp
+        mode: host
     environment:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
