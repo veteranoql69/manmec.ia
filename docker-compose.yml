@@ -1,8 +1,6 @@
 services:
   manmec-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/veteranoql69/manmec.ia:latest
     container_name: manmec-prod
     ports:
       - "3000:3000"
