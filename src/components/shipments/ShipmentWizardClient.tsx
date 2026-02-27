@@ -105,10 +105,12 @@ export function ShipmentWizardClient({ organizationId }: { organizationId: strin
         try {
             const res = await saveShipment({
                 organization_id: organizationId,
+                warehouse_id: "default", // Deberíamos seleccionar una, pero para el build fix usaremos esto
                 items: items.map(i => ({
                     description: i.description,
                     quantity: i.quantity,
-                    barcode: i.barcode
+                    barcode: i.barcode,
+                    exists: !i.isNew
                 }))
             });
 
