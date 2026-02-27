@@ -14,8 +14,10 @@ import {
     BrainCircuit,
     ArrowUpRight,
     Search,
-    Plus
+    Plus,
+    ExternalLink
 } from "lucide-react";
+import Link from "next/link";
 import type { ManmecUserProfile } from "@/lib/auth";
 import { ChronologyTimeline } from "./ChronologyTimeline";
 
@@ -149,18 +151,26 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                         <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/20 flex items-center justify-center text-[10px] font-black text-blue-400">
+                                                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-[10px] font-black ${op.mechanicName === 'POR ASIGNAR' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-blue-500/20 border-blue-500/20 text-blue-400'}`}>
                                                         {op.mechanicName.charAt(0)}
                                                     </div>
-                                                    <span className="font-bold text-slate-200">{op.mechanicName}</span>
+                                                    <span className={`font-bold ${op.mechanicName === 'POR ASIGNAR' ? 'text-amber-400 italic' : 'text-slate-200'}`}>
+                                                        {op.mechanicName}
+                                                    </span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 font-mono text-xs text-slate-400">{op.vehicle}</td>
                                             <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2 group-hover:text-blue-400 transition-colors">
-                                                    <span className="text-sm font-mono font-bold tracking-tighter">{op.ot}</span>
-                                                    <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-all transition-transform group-hover:-translate-y-0.5" />
-                                                </div>
+                                                <Link
+                                                    href={`/dashboard/ots/${op.id}`}
+                                                    target="_blank"
+                                                    className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors group/link"
+                                                >
+                                                    <span className="text-sm font-mono font-black tracking-tighter decoration-blue-400/30 underline-offset-4 group-hover/link:underline">
+                                                        {op.ot.slice(0, 8)}
+                                                    </span>
+                                                    <ExternalLink className="w-3 h-3 transition-transform group-hover/link:-translate-y-0.5" />
+                                                </Link>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${op.status === "WORKING" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :

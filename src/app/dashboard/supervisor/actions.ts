@@ -46,39 +46,34 @@ export async function getCurrentOperations() {
     const profile = await requireRole("SUPERVISOR");
     const supabase = await createClient();
 
-    const { data: assignments, error } = await supabase
-        .from("manmec_work_order_assignments")
+    // Consultar las OTs activas como fuente principal
+    const { data: workOrders, error } = await supabase
+        .from("manmec_work_orders")
         .select(`
             id,
-            mechanic:mechanic_id(full_name),
-            work_order:work_order_id!inner(
-                id,
-                status,
-                updated_at
-            )
+            status,
+            updated_at,
+            assigned_user:assigned_to(full_name),
+            vehicle:vehicle_id(plate)
         `)
-        .eq("work_order.organization_id", profile.organization_id);
+        .eq("organization_id", profile.organization_id)
+        .not("status", "eq", "COMPLETED")
+        .not("status", "eq", "CANCELLED")
+        .order("created_at", { ascending: false });
 
     if (error) {
         console.error("Error fetching current operations:", error);
         throw error;
     }
 
-    const data = assignments as any[];
-
-    return data.map(a => {
-        const mechanicProfile = Array.isArray(a.mechanic) ? a.mechanic[0] : a.mechanic;
-        const workOrder = Array.isArray(a.work_order) ? a.work_order[0] : a.work_order;
-
-        return {
-            id: a.id,
-            mechanicName: mechanicProfile?.full_name || "Desconocido",
-            vehicle: "N/A", // vehicle_id no existe en la tabla manmec_work_orders aún
-            ot: workOrder?.id?.slice(0, 8) || "N/A",
-            status: workOrder?.status || "PENDING",
-            updatedAt: workOrder?.updated_at || new Date().toISOString()
-        };
-    });
+    return workOrders.map(wo => ({
+        id: wo.id,
+        mechanicName: (wo.assigned_user as any)?.full_name || "POR ASIGNAR",
+        vehicle: (wo.vehicle as any)?.plate || "N/A",
+        ot: wo.id, // Pasamos el ID completo para el enlace
+        status: wo.status,
+        updatedAt: wo.updated_at
+    }));
 }
 
 /**

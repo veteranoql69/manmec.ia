@@ -80,9 +80,11 @@ model ManmecOrganization {
   name            String
   rut             String?   @unique
   logo_url        String?
-  plan            String    @default("free")
-  allowed_domains String[]  @default([])
-  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  plan                      String    @default("free")
+  allowed_domains           String[]  @default([])
+  client_notification_email String?   @default("bodega@manmec.cl")
+  settings                  Json?     @default("{}")
+  created_at                DateTime  @default(now()) @db.Timestamptz(6)
   updated_at      DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at      DateTime? @db.Timestamptz(6)
 
@@ -107,34 +109,34 @@ model ManmecOrganization {
 // Usuario (vinculado 1:1 con Supabase Auth / better-auth)
 // -----------------------------------------------------------
 model ManmecUser {
-  id              String          @id @db.Uuid
-  organization_id String?         @db.Uuid
-  role            ManmecUserRole?
-  full_name       String          @default("")
-  phone           String?
-  avatar_url      String?
-  auth_provider      String          @default("google")
-  is_active          Boolean         @default(true)
-  onboarding_status  String          @default("pending")  // pending | complete
-  created_at         DateTime        @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime        @default(now()) @db.Timestamptz(6)
+  id                String          @id @db.Uuid
+  organization_id   String?         @db.Uuid
+  role              ManmecUserRole?
+  full_name         String          @default("")
+  phone             String?
+  avatar_url        String?
+  auth_provider     String          @default("google")
+  is_active         Boolean         @default(true)
+  onboarding_status String          @default("pending") // pending | complete
+  created_at        DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime        @default(now()) @db.Timestamptz(6)
 
-  organization               ManmecOrganization?          @relation(fields: [organization_id], references: [id])
-  supervised_assignments     ManmecSupervisorAssignment[] @relation("Supervisor")
-  mechanic_assignments       ManmecSupervisorAssignment[] @relation("Mechanic")
-  created_work_orders        ManmecWorkOrder[]            @relation("CreatedBy")
-  assigned_work_orders       ManmecWorkOrder[]            @relation("AssignedTo")
-  work_order_photos          ManmecWorkOrderPhoto[]
-  inventory_movements        ManmecInventoryMovement[]
-  route_plans                ManmecRoutePlan[]
-  notifications              ManmecNotification[]
-  ai_conversations           ManmecAiConversation[]
-  acknowledged_ai_actions    ManmecAiAction[]
-  voice_commands             ManmecVoiceCommand[]
-  wo_assignments             ManmecWorkOrderAssignment[]  @relation("MechanicAssignment")
-  wo_assignments_by          ManmecWorkOrderAssignment[]  @relation("AssignedByUser")
-  timeline_entries           ManmecWorkOrderTimeline[]
-  assigned_tools             ManmecTool[]
+  organization            ManmecOrganization?          @relation(fields: [organization_id], references: [id])
+  supervised_assignments  ManmecSupervisorAssignment[] @relation("Supervisor")
+  mechanic_assignments    ManmecSupervisorAssignment[] @relation("Mechanic")
+  created_work_orders     ManmecWorkOrder[]            @relation("CreatedBy")
+  assigned_work_orders    ManmecWorkOrder[]            @relation("AssignedTo")
+  work_order_photos       ManmecWorkOrderPhoto[]
+  inventory_movements     ManmecInventoryMovement[]
+  route_plans             ManmecRoutePlan[]
+  notifications           ManmecNotification[]
+  ai_conversations        ManmecAiConversation[]
+  acknowledged_ai_actions ManmecAiAction[]
+  voice_commands          ManmecVoiceCommand[]
+  wo_assignments          ManmecWorkOrderAssignment[]  @relation("MechanicAssignment")
+  wo_assignments_by       ManmecWorkOrderAssignment[]  @relation("AssignedByUser")
+  timeline_entries        ManmecWorkOrderTimeline[]
+  assigned_tools          ManmecTool[]
 
   @@map("manmec_users")
 }
@@ -164,6 +166,7 @@ model ManmecServiceStation {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organization_id String    @db.Uuid
   name            String
+  code            String?
   address         String?
   latitude        Float?
   longitude       Float?
@@ -173,6 +176,26 @@ model ManmecServiceStation {
   created_at      DateTime  @default(now()) @db.Timestamptz(6)
   updated_at      DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at      DateTime? @db.Timestamptz(6)
+
+  // Campos extendidos Maestro EDS
+  sap_store_code  String?
+  sap_store_id    String?
+  brand           String?
+  location_type   String?
+  segment         String?
+  cluster         String?
+  format          String?
+  operation_type  String?
+  app_name        String?
+  pos_system      String?
+  commune         String?
+  region_id       Int?
+  direction_sense String?
+  shop_radius     Float?
+  route_radius    Float?
+  is_mirror       Int?     @default(0)
+  services        String? // Lista separada por comas
+  is_active_sap   Boolean? @default(true)
 
   organization        ManmecOrganization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   work_orders         ManmecWorkOrder[]
@@ -204,6 +227,8 @@ model ManmecWorkOrder {
   started_at               DateTime?        @db.Timestamptz(6)
   completed_at             DateTime?        @db.Timestamptz(6)
   source                   String           @default("manual")
+  external_id              String?
+  external_source          String?
   created_at               DateTime         @default(now()) @db.Timestamptz(6)
   updated_at               DateTime         @default(now()) @db.Timestamptz(6)
   deleted_at               DateTime?        @db.Timestamptz(6)
@@ -255,19 +280,23 @@ model ManmecVehicle {
 // Catastro de Herramientas
 // -----------------------------------------------------------
 model ManmecTool {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_id String    @db.Uuid
-  serial_number   String    @unique
-  name            String
-  brand           String?
-  model           String?
-  category        String?
-  status          String    @default("available")
-  assigned_user_id String?  @db.Uuid
-  assigned_vehicle_id String? @db.Uuid
-  created_at      DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
-  deleted_at      DateTime? @db.Timestamptz(6)
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id     String    @db.Uuid
+  serial_number       String    @unique
+  name                String
+  brand               String?
+  model               String?
+  category            String?
+  status              String    @default("available")
+  assigned_user_id    String?   @db.Uuid
+  assigned_vehicle_id String?   @db.Uuid
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at          DateTime? @db.Timestamptz(6)
+
+  // Seguimiento Sensible
+  is_sensitive Boolean @default(false)
+  criticality  String? @default("normal")
 
   organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   user         ManmecUser?        @relation(fields: [assigned_user_id], references: [id])
@@ -285,6 +314,8 @@ model ManmecShipment {
   supplier_name        String?
   dispatch_note_number String?
   dispatch_note_url    String?
+  external_id          String?
+  order_number         String?
   ocr_data             Json?
   status               String   @default("PENDING")
   received_by          String?  @db.Uuid
@@ -298,11 +329,11 @@ model ManmecShipment {
 }
 
 model ManmecShipmentItem {
-  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  shipment_id  String  @db.Uuid
-  item_id      String  @db.Uuid
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shipment_id  String   @db.Uuid
+  item_id      String   @db.Uuid
   expected_qty Decimal
-  received_qty Decimal @default(0)
+  received_qty Decimal  @default(0)
   unit_price   Decimal?
   notes        String?
 
@@ -422,10 +453,14 @@ model ManmecInventoryItem {
   created_at      DateTime @default(now()) @db.Timestamptz(6)
   updated_at      DateTime @default(now()) @db.Timestamptz(6)
 
-  organization ManmecOrganization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-  stock        ManmecInventoryStock[]
-  movements    ManmecInventoryMovement[]
-  wo_materials ManmecWorkOrderMaterial[]
+  // Seguimiento Sensible
+  is_sensitive Boolean @default(false)
+  criticality  String? @default("normal")
+
+  organization   ManmecOrganization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  stock          ManmecInventoryStock[]
+  movements      ManmecInventoryMovement[]
+  wo_materials   ManmecWorkOrderMaterial[]
   shipment_items ManmecShipmentItem[]
 
   @@index([organization_id])
@@ -627,16 +662,16 @@ model ManmecPublicEmailDomain {
 // Auditoría inmutable (solo INSERT vía triggers de PostgreSQL)
 // -----------------------------------------------------------
 model ManmecAuditLog {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_id String?   @db.Uuid
-  user_id         String?   @db.Uuid
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String?  @db.Uuid
+  user_id         String?  @db.Uuid
   action          String
   table_name      String
-  record_id       String?   @db.Uuid
+  record_id       String?  @db.Uuid
   old_data        Json?
   new_data        Json?
   ip_address      String?
-  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([table_name, record_id, created_at])
   @@map("manmec_audit_log")

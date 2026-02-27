@@ -1,10 +1,10 @@
 import { requireRole } from "@/lib/auth";
-import { ShipmentReceptionClient } from "@/components/dashboard/shipments/ShipmentReceptionClient";
-import { Package } from "lucide-react";
-import { getWarehouses } from "../../warehouses/actions";
+import { getWarehouses } from "./actions";
+import { WarehouseManagementClient } from "@/components/dashboard/warehouses/WarehouseManagementClient";
+import { Warehouse } from "lucide-react";
 
-export default async function NewShipmentPage() {
-    const profile = await requireRole("SUPERVISOR");
+export default async function WarehousesPage() {
+    await requireRole("SUPERVISOR");
     const warehouses = await getWarehouses();
 
     return (
@@ -12,16 +12,16 @@ export default async function NewShipmentPage() {
             <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-4xl font-black bg-gradient-to-r from-white to-slate-500 bg-clip-text text-transparent tracking-tight">
-                        Gestión de Carga
+                        Gestión de Bodegas
                     </h1>
                     <p className="text-slate-400 mt-2 flex items-center gap-2 font-medium">
-                        <Package className="w-4 h-4 text-blue-500" />
-                        Recepción de insumos y mantenimiento de catálogo
+                        <Warehouse className="w-4 h-4 text-emerald-500" />
+                        Control de centros de acopio y stock físico centralizado
                     </p>
                 </div>
             </header>
 
-            <ShipmentReceptionClient organizationId={profile.organization_id as string} warehouses={warehouses} />
+            <WarehouseManagementClient initialWarehouses={warehouses} />
         </div>
     );
 }

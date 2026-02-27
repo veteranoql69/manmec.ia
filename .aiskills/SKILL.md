@@ -11,6 +11,8 @@ Vamos a construir "Manmec IA", un SaaS para la gestión operativa y de mantenci�
 - **Estilos:** Tailwind CSS + Shadcn/ui (UI limpia, accesible y ultra-responsiva).
 - **IA:** Anthropic Claude (Sonnet 3.5 / Opus) para lógica de agentes.
 - **Despliegue:** Docker (Next.js en modo `standalone`) hacia Portainer en subdominio corporativo.
+- **SkillS GloBales:** Ruta de Skills Globales C:\Users\siste\.agent\skills
+- **Skills Local:** Ruta Skills Local C:\Users\siste\Documents\Antigravity_project\manmec\.aiskills
 
 ### 📐 REGLAS DE ARQUITECTURA Y CÓDIGO
 

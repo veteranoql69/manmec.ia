@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Rutas públicas (no requieren autenticación)
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/confirm"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/confirm", "/api/webhooks"];
 
 // Rutas de "auth incompleta" (permiten sesión pero sin org completa)
 const ONBOARDING_PATHS = ["/onboarding", "/pending"];

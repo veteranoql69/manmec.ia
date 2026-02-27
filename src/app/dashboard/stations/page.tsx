@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { getServiceStations } from "./actions";
-import { StationManagementClient } from "@/components/dashboard/stations/StationManagementClient";
+import StationManagementClient from "@/components/dashboard/stations/StationManagementClient";
 import { MapPin } from "lucide-react";
 
 export default async function StationsPage() {

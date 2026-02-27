@@ -22,16 +22,34 @@ export type WorkOrder = {
     // Virtual fields for joins
     station?: {
         name: string;
+        code: string | null;
         address: string | null;
+        contact_name: string | null;
+        contact_phone: string | null;
     };
     assigned_user?: {
         full_name: string;
     };
     vehicle?: {
+        id: string;
         plate: string;
         brand: string | null;
         model: string | null;
     };
+    team?: Array<{
+        mechanic: { full_name: string; email: string };
+        role: "lead" | "support";
+    }>;
+    materials?: Array<{
+        item: { name: string; sku: string; unit: string };
+        quantity: number;
+        notes: string | null;
+    }>;
+    vehicle_withdrawals?: Array<{
+        item: { name: string; sku: string; unit: string };
+        quantity: number;
+        created_at: string;
+    }>;
 };
 
 /**
@@ -62,18 +80,18 @@ export async function getWorkOrders() {
 }
 
 /**
- * Obtiene una OT específica por ID con sus herramientas asociadas al vehículo
+ * Obtiene una OT específica por ID con el contexto completo (Equipo, Insumos, Vehículo)
  */
 export async function getWorkOrderDetail(id: string) {
     const profile = await requireRole("SUPERVISOR");
     const supabase = await createClient();
 
-    // 1. Obtener la OT
+    // 1. Obtener la OT básica con Estación y Vehículo
     const { data: ot, error: otError } = await supabase
         .from("manmec_work_orders")
         .select(`
             *,
-            station:station_id(name, address, contact_name, contact_phone),
+            station:station_id(name, code, address, contact_name, contact_phone),
             assigned_user:assigned_to(full_name),
             vehicle:vehicle_id(id, plate, brand, model)
         `)
@@ -85,23 +103,48 @@ export async function getWorkOrderDetail(id: string) {
         throw otError;
     }
 
-    // 2. Si tiene vehículo asignado, obtener las herramientas de ese vehículo
-    let tools: any[] = [];
-    if (ot.vehicle_id) {
-        const { data: vehicleTools, error: toolsError } = await supabase
-            .from("manmec_tools")
-            .select("*")
-            .eq("assigned_vehicle_id", ot.vehicle_id)
-            .is("deleted_at", null);
+    // 2. Obtener el Equipo HUMANO (Múltiples mecánicos)
+    const { data: team, error: teamError } = await supabase
+        .from("manmec_work_order_assignments")
+        .select(`
+            role,
+            mechanic:mechanic_id(full_name, email)
+        `)
+        .eq("work_order_id", id);
 
-        if (!toolsError) {
-            tools = vehicleTools;
-        }
+    // 3. Obtener Materiales USADOS (Registrados en la OT)
+    const { data: materials, error: matError } = await supabase
+        .from("manmec_work_order_materials")
+        .select(`
+            quantity,
+            notes,
+            item:item_id(name, sku, unit)
+        `)
+        .eq("work_order_id", id);
+
+    // 4. Si tiene vehículo, obtener Insumos RETIRADOS para ese vehículo (Planificación diaria)
+    let vehicleWithdrawals: any[] = [];
+    if (ot.vehicle_id) {
+        const { data: withdrawals, error: withError } = await supabase
+            .from("manmec_inventory_movements")
+            .select(`
+                quantity,
+                created_at,
+                item:item_id(name, sku, unit)
+            `)
+            .eq("vehicle_id", ot.vehicle_id)
+            .eq("type", "OUT") // Solo salidas de bodega hacia vehículo
+            .is("work_order_id", null); // Evitar duplicar los consumos directos si existen
+
+        if (!withError) vehicleWithdrawals = withdrawals;
     }
 
     return {
         ...ot,
-        tools
+        team: team || [],
+        materials: materials || [],
+        vehicle_withdrawals: vehicleWithdrawals,
+        tools: [] // Se mantiene el placeholder para futura implementación de herramientas
     };
 }
 
@@ -130,4 +173,73 @@ export async function upsertWorkOrder(data: Partial<WorkOrder>) {
 
     revalidatePath("/dashboard/ots");
     return { success: true };
+}
+/**
+ * Asigna un vehículo a una OT
+ */
+export async function assignVehicleToWorkOrder(otId: string, vehicleId: string) {
+    const profile = await requireRole("SUPERVISOR");
+    const supabase = await createClient();
+
+    const { error } = await supabase
+        .from("manmec_work_orders")
+        .update({ vehicle_id: vehicleId })
+        .eq("id", otId)
+        .eq("organization_id", profile.organization_id);
+
+    if (error) throw error;
+    revalidatePath(`/dashboard/ots/${otId}`);
+    return { success: true };
+}
+
+/**
+ * Asigna un mecánico a una OT (Como Líder o Apoyo)
+ */
+export async function assignMechanicToWorkOrder(otId: string, mechanicId: string, role: "lead" | "support" = "support") {
+    const profile = await requireRole("SUPERVISOR");
+    const supabase = await createClient();
+
+    // Si es líder, actualizar el campo assigned_to de la OT principal
+    if (role === "lead") {
+        const { error: otError } = await supabase
+            .from("manmec_work_orders")
+            .update({ assigned_to: mechanicId })
+            .eq("id", otId)
+            .eq("organization_id", profile.organization_id);
+
+        if (otError) throw otError;
+    }
+
+    // Insertar en la tabla de asignaciones detalladas
+    const { error } = await supabase
+        .from("manmec_work_order_assignments")
+        .upsert({
+            work_order_id: otId,
+            mechanic_id: mechanicId,
+            role,
+            assigned_by: profile.id
+        }, { onConflict: 'work_order_id,mechanic_id' });
+
+    if (error) throw error;
+
+    revalidatePath(`/dashboard/ots/${otId}`);
+    return { success: true };
+}
+
+/**
+ * Obtiene lista de recursos disponibles (Mecánicos y Vehículos)
+ */
+export async function getAvailableResources() {
+    const profile = await requireRole("SUPERVISOR");
+    const supabase = await createClient();
+
+    const [mechanics, vehicles] = await Promise.all([
+        supabase.from("manmec_users").select("id, full_name").eq("organization_id", profile.organization_id).eq("role", "MECHANIC"),
+        supabase.from("manmec_vehicles").select("id, plate, brand, model").eq("organization_id", profile.organization_id).eq("is_active", true)
+    ]);
+
+    return {
+        mechanics: mechanics.data || [],
+        vehicles: vehicles.data || []
+    };
 }

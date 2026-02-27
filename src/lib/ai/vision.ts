@@ -4,6 +4,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export interface ExtractedShipment {
     dispatch_note_number: string;
+    order_number: string;
     supplier_name: string;
     items: {
         code: string;
@@ -21,19 +22,20 @@ export async function analyzeShipmentImage(base64Image: string): Promise<Extract
         throw new Error("GEMINI_API_KEY no configurado en el servidor.");
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
     const prompt = `
         Eres un experto en logística y OCR. Analiza esta imagen de una Guía de Despacho Electrónica.
         Extrae la siguiente información en formato JSON estricto:
         
         1. "dispatch_note_number": El número de la guía (ej: 25434647).
-        2. "supplier_name": El nombre del emisor/proveedor (ej: COPEC S.A.).
-        3. "items": Una lista de los productos en la sección de SERVICIO/CANTIDAD. Cada item debe tener:
+        2. "order_number": El número de PEDIDO que aparece en la cabecera (ej: 5501080963).
+        3. "supplier_name": El nombre del emisor/proveedor (ej: COPEC S.A.).
+        4. "items": Una lista de los productos en la sección de SERVICIO/CANTIDAD o detalle. Cada item debe tener:
            - "code": El código numérico a la izquierda.
            - "description": El nombre del producto/servicio.
            - "quantity": La cantidad numérica.
-           - "unit": La unidad de medida (ej: UN).
+           - "unit": La unidad de medida (ej: UN, 7UN, etc - limpia el número de la unidad si viene junto).
 
         IMPORTANTE: Responde ÚNICAMENTE con el objeto JSON, sin markdown ni texto adicional.
         Si no puedes leer algún dato, deja el campo como string vacío o lista vacía.

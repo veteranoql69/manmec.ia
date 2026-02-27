@@ -1,13 +1,7 @@
 node_modules
 .next
-.git
-.gitignore
-.env
 .env.local
-.env.example
-Dockerfile
-.dockerignore
-README.md
-.aiskills
-.vscode
+.git
 *.md
+scripts
+prisma/migrations
