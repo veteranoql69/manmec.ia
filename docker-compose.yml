@@ -10,5 +10,6 @@ services:
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - DATABASE_URL=${DATABASE_URL}
+      - HOSTNAME=0.0.0.0
       - NODE_ENV=production
     restart: always
