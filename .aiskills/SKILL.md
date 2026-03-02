@@ -25,6 +25,13 @@ Vamos a construir "Manmec IA", un SaaS para la gestión operativa y de mantenci�
 5. **No Alucinaciones:** Gemini solo debe responder sobre el inventario y estado del personal utilizando datos inyectados vía Function Calling / MCP. No debe inventar stock. Y debe priorizar procesar audios `.ogg` nativamente sin depender de Whisper.
 6. **Entorno de Desarrollo:** El servidor local corre siempre en el **Puerto 3000**. Todas las redirecciones de Auth y pruebas de navegador deben usar `http://localhost:3000`.
 
+## 🚀 ESTRATEGIA DE DESPLIEGUE Y VERSIONADO (Git Flow)
+
+1. **Ramas Principales:**
+   - \`main\`: Rama de desarrollo activo donde se experimenta y se integran nuevas features.
+   - \`production\`: Rama sagrada. Solo recibe código maduro vía Pull Request/Merge desde \`main\`.
+2. **Control de Versiones y Rollbacks:** Al publicar hacia \`production\`, siempre se debe etiquetar el commit con Git Tags (ej: \`v1.0.0-mvp\`) para tener puntos de restauración claros en caso de fallas críticas.
+
 ## 🎯 CONTEXTO DEL NEGOCIO (Fase MVP)
 
 - El sistema gestiona Órdenes de Trabajo (OTs) priorizadas (P1 urgente a P4 normal).
