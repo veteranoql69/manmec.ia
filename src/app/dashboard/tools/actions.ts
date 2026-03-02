@@ -16,8 +16,10 @@ export type Tool = {
     status: ToolStatus;
     assigned_user_id: string | null;
     assigned_vehicle_id: string | null;
+    assigned_warehouse_id: string | null;
     assigned_user?: { full_name: string } | null;
     assigned_vehicle?: { plate: string } | null;
+    assigned_warehouse?: { name: string } | null;
 };
 
 /**

@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { ToolsManagementClient } from "@/components/dashboard/tools/ToolsManagementClient";
 import { getTools } from "./actions";
 import { getTeamMembers } from "@/components/team/actions";
@@ -7,9 +8,14 @@ import { Wrench } from "lucide-react";
 
 export default async function ToolsPage() {
     const profile = await requireRole("SUPERVISOR");
-    const tools = await getTools();
-    const members = await getTeamMembers();
-    const vehicles = await getVehicles();
+    const supabase = await createClient();
+
+    const [tools, members, vehicles, { data: warehouses }] = await Promise.all([
+        getTools(),
+        getTeamMembers(),
+        getVehicles(),
+        supabase.from("manmec_warehouses").select("*").eq("organization_id", profile.organization_id).eq("is_active", true).order("name")
+    ]);
 
     return (
         <div className="p-6 md:p-10 min-h-screen bg-[#0a0a0a] text-white">
@@ -29,6 +35,7 @@ export default async function ToolsPage() {
                 initialTools={tools}
                 members={members as any[]}
                 vehicles={vehicles}
+                warehouses={warehouses || []}
             />
         </div>
     );

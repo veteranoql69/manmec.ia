@@ -25,6 +25,21 @@ export async function processShipmentImage(base64Image: string) {
     // 2. Cruzar con la base de datos para ver qué existe
     const supabase = await createClient();
 
+    // 2.1 Verificar inmediatamente si la guía ya existe
+    let is_duplicate = false;
+    if (extracted.dispatch_note_number) {
+        const { data: existingShipment } = await supabase
+            .from("manmec_shipments")
+            .select("id")
+            .eq("organization_id", profile.organization_id)
+            .eq("dispatch_note_number", extracted.dispatch_note_number)
+            .maybeSingle();
+
+        if (existingShipment) {
+            is_duplicate = true;
+        }
+    }
+
     const enrichedItems = await Promise.all(extracted.items.map(async (item) => {
         const { data: existing } = await supabase
             .from("manmec_inventory_items")
@@ -45,6 +60,7 @@ export async function processShipmentImage(base64Image: string) {
         dispatch_note_number: extracted.dispatch_note_number,
         order_number: extracted.order_number,
         supplier_name: extracted.supplier_name,
+        is_duplicate,
         items: enrichedItems
     };
 }
@@ -75,7 +91,7 @@ export async function saveShipment(data: {
             .maybeSingle();
 
         if (existingShipment) {
-            throw new Error(`La guía Nº ${data.dispatch_note_number} ya se encuentra registrada en el sistema.`);
+            return { success: false, error: `La guía de despacho Nº ${data.dispatch_note_number} ya fue recepcionada anteriormente.` };
         }
     }
 
@@ -204,7 +220,7 @@ export async function saveShipment(data: {
 
     } catch (e: any) {
         console.error("🚨 Error crítico en saveShipment:", e);
-        throw e;
+        return { success: false, error: "Ha ocurrido un error interno al guardar la recepción." };
     }
 }
 

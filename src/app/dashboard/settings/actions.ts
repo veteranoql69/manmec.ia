@@ -8,6 +8,7 @@ export type OrganizationSettings = {
     id: string;
     name: string;
     client_notification_email: string | null;
+    allowed_email_domains: string[];
     settings: any;
 };
 
@@ -20,7 +21,7 @@ export async function getOrganizationSettings() {
 
     const { data, error } = await supabase
         .from("manmec_organizations")
-        .select("id, name, client_notification_email, settings")
+        .select("id, name, client_notification_email, allowed_email_domains, settings")
         .eq("id", profile.organization_id)
         .single();
 
@@ -43,6 +44,7 @@ export async function updateOrganizationSettings(data: Partial<OrganizationSetti
         .from("manmec_organizations")
         .update({
             client_notification_email: data.client_notification_email,
+            allowed_email_domains: data.allowed_email_domains,
             settings: data.settings,
             updated_at: new Date().toISOString(),
         })

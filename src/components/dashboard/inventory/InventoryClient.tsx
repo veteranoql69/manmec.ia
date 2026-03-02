@@ -27,10 +27,11 @@ interface Warehouse {
     name: string;
 }
 
-export function InventoryClient({ initialItems, warehouses }: { initialItems: InventoryItem[], warehouses: Warehouse[] }) {
+export function InventoryClient({ initialItems, warehouses, initialWarehouseId = "all" }: { initialItems: InventoryItem[], warehouses: Warehouse[], initialWarehouseId?: string }) {
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const [search, setSearch] = useState("");
-    const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>("all");
+    const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(initialWarehouseId);
+    const [activeTab, setActiveTab] = useState<"all" | "critical" | "out_of_stock">("all");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
 
@@ -67,29 +68,53 @@ export function InventoryClient({ initialItems, warehouses }: { initialItems: In
         });
     };
 
-    const filteredItems = initialItems.filter(item => {
-        const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) ||
-            item.sku?.toLowerCase().includes(search.toLowerCase()) ||
-            item.barcode?.toLowerCase().includes(search.toLowerCase());
-
-        if (selectedWarehouseId !== "all") {
-            return matchesSearch;
-        }
-
-        return matchesSearch;
-    }).map(item => {
-        // Si hay una bodega seleccionada, sobreescribimos el total_stock para esa vista
+    // Aplicar lógica de "Progressive Disclosure"
+    const filteredItems = initialItems.map(item => {
+        // Compute correct total stock based on warehouse filter
         if (selectedWarehouseId !== "all") {
             const warehouseStock = item.stock_by_warehouse.find(s => s.warehouse_id === selectedWarehouseId)?.quantity || 0;
             return { ...item, total_stock: warehouseStock };
         }
         return item;
+    }).filter(item => {
+        // 1. Ocultar la basura (Cero total y cero mínimo) para no saturar 
+        // a menos que estemos buscando algo específico
+        if (search === "" && item.total_stock === 0 && item.min_stock === 0) {
+            return false;
+        }
+
+        // 2. Filtro de Búsqueda
+        const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) ||
+            item.sku?.toLowerCase().includes(search.toLowerCase()) ||
+            item.barcode?.toLowerCase().includes(search.toLowerCase());
+
+        if (!matchesSearch) return false;
+
+        // 3. Filtro de Pestañas (Tabs)
+        if (activeTab === "critical") {
+            // Crítico es cuando te queda algo pero estás bajo el mínimo
+            return item.total_stock <= item.min_stock && item.total_stock > 0;
+        }
+        if (activeTab === "out_of_stock") {
+            return item.total_stock === 0;
+        }
+
+        return true;
+    }).sort((a, b) => {
+        // Orden semántico inteligente. 
+        // Primero los que están más críticos (mayor brecha negativa entre stock y min_stock)
+        const gapA = a.total_stock - a.min_stock;
+        const gapB = b.total_stock - b.min_stock;
+
+        if (gapA < 0 && gapB >= 0) return -1;
+        if (gapB < 0 && gapA >= 0) return 1;
+        return gapA - gapB;
     });
 
     return (
         <div className="space-y-6">
             {/* Header incorporado */}
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+            <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                 <div>
                     <h1 className="text-4xl font-black bg-gradient-to-r from-white to-slate-500 bg-clip-text text-transparent tracking-tight uppercase">
                         Gestión de Insumos
@@ -106,6 +131,28 @@ export function InventoryClient({ initialItems, warehouses }: { initialItems: In
                     <Plus size={20} strokeWidth={3} className="group-hover:rotate-90 transition-transform" /> Nuevo Insumo
                 </button>
             </header>
+
+            {/* Pestañas (Tabs) Progresivas */}
+            <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/10 w-fit overflow-x-auto max-w-full no-scrollbar">
+                <button
+                    onClick={() => setActiveTab("all")}
+                    className={`px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === "all" ? "bg-white/10 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"}`}
+                >
+                    Todos (Con Stock)
+                </button>
+                <button
+                    onClick={() => setActiveTab("critical")}
+                    className={`px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === "critical" ? "bg-orange-500/20 text-orange-400 border border-orange-500/30 shadow-lg shadow-orange-900/20" : "text-slate-500 hover:text-orange-400/50"}`}
+                >
+                    <AlertTriangle size={14} /> Stock Crítico
+                </button>
+                <button
+                    onClick={() => setActiveTab("out_of_stock")}
+                    className={`px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === "out_of_stock" ? "bg-red-500/20 text-red-400 border border-red-500/30 shadow-lg shadow-red-900/20" : "text-slate-500 hover:text-red-400/50"}`}
+                >
+                    <X size={14} /> Agotados
+                </button>
+            </div>
 
             {/* Toolbar Inteligente */}
             <div className="flex flex-col lg:flex-row gap-4">

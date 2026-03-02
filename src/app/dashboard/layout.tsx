@@ -10,7 +10,8 @@ import {
     BrainCircuit,
     Settings,
     PackageSearch,
-    Users
+    Users,
+    Warehouse
 } from "lucide-react";
 
 export default async function DashboardLayout({
@@ -41,6 +42,7 @@ export default async function DashboardLayout({
                         </div>
                         <SidebarLink href="/dashboard/tools" icon={<Wrench size={20} />} label="Herramientas" />
                         <SidebarLink href="/dashboard/inventory" icon={<Box size={20} />} label="Insumos / Stock" />
+                        <SidebarLink href="/dashboard/warehouses" icon={<Warehouse size={20} />} label="Bodegas" />
                         <SidebarLink href="/dashboard/shipments/new" icon={<PackageSearch size={20} />} label="Recibir Carga" />
                         <SidebarLink href="/dashboard/fleet" icon={<Truck size={20} />} label="Flota / Vehículos" />
 
@@ -62,7 +64,7 @@ export default async function DashboardLayout({
                             <p className="text-xs font-bold truncate">{profile.full_name}</p>
                             <p className="text-[10px] text-slate-500 uppercase font-mono">{profile.role}</p>
                         </div>
-                        <Link href="/api/auth/signout" className="text-slate-500 hover:text-white transition-colors">
+                        <Link href="/logout" className="text-slate-500 hover:text-white transition-colors">
                             <LogOut size={16} />
                         </Link>
                     </div>

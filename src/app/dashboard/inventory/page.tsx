@@ -3,9 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import { Package, Plus } from "lucide-react";
 import { InventoryClient } from "@/components/dashboard/inventory/InventoryClient";
 
-export default async function InventoryPage() {
+export default async function InventoryPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
     const profile = await requireRole("SUPERVISOR");
     const supabase = await createClient();
+    const resolvedParams = await searchParams;
+    const initialWarehouseId = typeof resolvedParams.warehouse === 'string' ? resolvedParams.warehouse : "all";
 
     // 1. Consultar bodegas disponibles
     const { data: warehouses } = await supabase
@@ -53,7 +59,7 @@ export default async function InventoryPage() {
         <div className="p-4 md:p-8">
             <div className="max-w-6xl mx-auto space-y-8">
                 {/* Componente Cliente para Filtros, Cambio de Vista, Bodegas y Creación */}
-                <InventoryClient initialItems={enrichedItems} warehouses={warehouses || []} />
+                <InventoryClient initialItems={enrichedItems} warehouses={warehouses || []} initialWarehouseId={initialWarehouseId} />
             </div>
         </div>
     );

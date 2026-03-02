@@ -41,8 +41,10 @@ export function ShipmentReceptionClient({
         dispatch_note_number: string;
         order_number: string;
         supplier_name: string;
+        is_duplicate?: boolean;
         items: EnrichedItem[];
     } | null>(null);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,12 +63,16 @@ export function ShipmentReceptionClient({
     const handleAnalyze = async () => {
         if (!image) return;
         setProcessing(true);
+        setSaveError(null);
         try {
             const result = await processShipmentImage(image);
             setExtractedData(result);
+            if (result.is_duplicate) {
+                setSaveError(`⚠️ La Guía de Despacho Nº ${result.dispatch_note_number} ya fue ingresada previamente.`);
+            }
         } catch (error: any) {
             console.error("Error en análisis IA:", error);
-            alert("Error al procesar: " + (error.message || "Error desconocido"));
+            setSaveError("Error al procesar: " + (error.message || "Error desconocido"));
         } finally {
             setProcessing(false);
         }
@@ -81,7 +87,12 @@ export function ShipmentReceptionClient({
 
     const handleSave = async () => {
         if (!extractedData) return;
+        if (extractedData.is_duplicate) {
+            setSaveError("⚠️ Debes corregir el número de guía antes de continuar.");
+            return;
+        }
         setLoading(true);
+        setSaveError(null);
         try {
             const result = await saveShipment({
                 organization_id: organizationId,
@@ -99,10 +110,12 @@ export function ShipmentReceptionClient({
             if (result.success) {
                 router.push("/dashboard/shipments");
                 router.refresh();
+            } else {
+                setSaveError(result.error || "Error al intentar guardar la recepción.");
             }
         } catch (error: any) {
             console.error("Error al guardar recepción:", error);
-            alert("Error al guardar en BD: " + (error.message || "Error desconocido"));
+            setSaveError("Error al guardar en BD: " + (error.message || "Error desconocido"));
         } finally {
             setLoading(false);
         }
@@ -226,16 +239,21 @@ export function ShipmentReceptionClient({
                     className="space-y-6"
                 >
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white/5 border border-white/10 p-6 rounded-3xl flex items-center gap-4 group focus-within:border-blue-500/50 transition-all">
-                            <div className="w-12 h-12 rounded-2xl bg-blue-600/20 flex items-center justify-center text-blue-400">
-                                <FileText className="w-6 h-6" />
+                        <div className={`border p-6 rounded-3xl flex items-center gap-4 group transition-all ${extractedData.is_duplicate ? 'border-red-500/50 bg-red-500/5' : 'bg-white/5 border-white/10 focus-within:border-blue-500/50'}`}>
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${extractedData.is_duplicate ? 'bg-red-600/20 text-red-400 font-bold' : 'bg-blue-600/20 text-blue-400'}`}>
+                                {extractedData.is_duplicate ? <AlertCircle className="w-6 h-6 animate-pulse" /> : <FileText className="w-6 h-6" />}
                             </div>
                             <div className="flex-1">
-                                <p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Nº de Guía</p>
+                                <p className={`text-[10px] uppercase font-bold tracking-widest ${extractedData.is_duplicate ? 'text-red-400' : 'text-slate-500'}`}>
+                                    {extractedData.is_duplicate ? "Nº de Guía (DUPLICADO)" : "Nº de Guía"}
+                                </p>
                                 <input
-                                    className="bg-transparent text-xl font-black w-full outline-none text-white"
+                                    className={`bg-transparent text-xl font-black w-full outline-none ${extractedData.is_duplicate ? 'text-red-400' : 'text-white'}`}
                                     value={extractedData.dispatch_note_number}
-                                    onChange={(e) => setExtractedData({ ...extractedData, dispatch_note_number: e.target.value })}
+                                    onChange={(e) => {
+                                        setExtractedData({ ...extractedData, dispatch_note_number: e.target.value, is_duplicate: false });
+                                        setSaveError(null);
+                                    }}
                                 />
                             </div>
                         </div>
@@ -346,20 +364,31 @@ export function ShipmentReceptionClient({
                         </div>
                     </div>
 
+                    {saveError && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3 text-red-400"
+                        >
+                            <AlertCircle className="w-5 h-5 shrink-0" />
+                            <p className="text-sm font-bold leading-tight">{saveError}</p>
+                        </motion.div>
+                    )}
+
                     <div className="flex flex-col md:flex-row gap-4 pt-4">
                         <button
-                            disabled={loading}
+                            disabled={loading || extractedData.is_duplicate}
                             onClick={handleSave}
-                            className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-3xl flex items-center justify-center gap-3 shadow-xl shadow-blue-900/40 transition-all active:scale-[0.98] disabled:opacity-50 uppercase tracking-tight text-lg"
+                            className={`flex-1 text-white font-black py-6 rounded-3xl flex items-center justify-center gap-3 shadow-xl transition-all uppercase tracking-tight text-lg ${extractedData.is_duplicate ? 'bg-slate-700 opacity-50 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/40 active:scale-[0.98]'}`}
                         >
                             {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
                             Confirmar Ingesta e Incrementar Stock
                         </button>
                         <button
-                            onClick={() => setExtractedData(null)}
+                            onClick={() => { setExtractedData(null); setSaveError(null); }}
                             className="bg-white/5 border border-white/10 hover:bg-white/10 px-8 py-6 rounded-3xl font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-tighter text-sm text-slate-400"
                         >
-                            <AlertCircle className="w-4 h-4" /> Descartar y Re-Escanear
+                            <X className="w-4 h-4" /> Descartar y Re-Escanear
                         </button>
                     </div>
                 </motion.div>

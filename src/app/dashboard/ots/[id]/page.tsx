@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { getWorkOrderDetail, getAvailableResources } from "../actions";
 import { OTAssignmentManager } from "@/components/dashboard/OTAssignmentManager";
+import { MobileWarehouseTabs } from "@/components/dashboard/MobileWarehouseTabs";
 import {
     ChevronLeft,
     MapPin,
@@ -25,7 +26,7 @@ interface PageProps {
 }
 
 export default async function OTDetailPage({ params }: PageProps) {
-    const { id } = params;
+    const { id } = await params;
     await requireRole("SUPERVISOR");
 
     let ot, resources;
@@ -207,70 +208,9 @@ export default async function OTDetailPage({ params }: PageProps) {
                         />
                     )}
 
-                    {/* Vehículo Asignado */}
-                    <section className="bg-gradient-to-br from-emerald-600/20 to-teal-600/5 border border-emerald-500/20 p-8 rounded-[3rem] relative overflow-hidden group">
-                        <div className="absolute right-[-20px] top-[-20px] opacity-10 group-hover:opacity-20 transition-opacity">
-                            <Truck className="w-32 h-32 text-emerald-400" />
-                        </div>
-                        <h3 className="font-bold text-lg mb-6 flex items-center gap-3">
-                            <Truck className="text-emerald-400 w-5 h-5" /> Vehículo Asignado
-                        </h3>
-                        {ot.vehicle ? (
-                            <div className="space-y-4 relative z-10">
-                                <div className="bg-black/60 p-6 rounded-3xl border border-white/10 backdrop-blur-md">
-                                    <p className="text-[10px] font-black tracking-widest text-emerald-400 uppercase mb-1 font-mono">Patente</p>
-                                    <p className="text-4xl font-black uppercase font-mono tracking-tighter text-white">{ot.vehicle.plate}</p>
-                                    <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-wide">{ot.vehicle.brand} {ot.vehicle.model}</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="p-6 border border-dashed border-white/10 rounded-[2rem] text-center">
-                                <AlertTriangle className="w-8 h-8 mx-auto text-slate-700 mb-2" />
-                                <p className="text-xs text-slate-500 font-medium">Sin vehículo asignado</p>
-                            </div>
-                        )}
-                    </section>
+                    {/* Pestañas de Gestión de Furgón e IA */}
+                    <MobileWarehouseTabs ot={ot} />
 
-                    {/* Logística Matutina (Retiros de Bodega Central al Furgón) */}
-                    <section className="bg-white/5 border border-white/10 p-8 rounded-[3rem] backdrop-blur-md">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="font-bold text-lg flex items-center gap-3">
-                                <Package className="text-amber-500 w-5 h-5" /> Carga del Furgón
-                            </h3>
-                            {ot.vehicle_withdrawals?.length > 0 && (
-                                <span className="text-[10px] font-black bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full ring-1 ring-amber-500/30">
-                                    {ot.vehicle_withdrawals.length} ITEMS
-                                </span>
-                            )}
-                        </div>
-
-                        <div className="space-y-3">
-                            {ot.vehicle_withdrawals && ot.vehicle_withdrawals.length > 0 ? (
-                                ot.vehicle_withdrawals.map((item: any, idx: number) => (
-                                    <div key={idx} className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl group hover:border-amber-500/30 transition-all">
-                                        <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center border border-white/5 text-slate-600 group-hover:text-amber-500 transition-colors shrink-0">
-                                            <Package className="w-5 h-5" />
-                                        </div>
-                                        <div className="flex-1 overflow-hidden">
-                                            <p className="text-xs font-black text-slate-200 truncate uppercase">{item.item?.name}</p>
-                                            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-tighter">{item.item?.sku}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-lg font-black text-amber-500 leading-none">{item.quantity}</p>
-                                            <p className="text-[8px] uppercase font-bold text-slate-600">{item.item?.unit}</p>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="p-6 border border-dashed border-white/10 rounded-[2rem] text-center">
-                                    <p className="text-xs text-slate-600 font-medium">Buscando planificación de carga...</p>
-                                </div>
-                            )}
-                        </div>
-                        <p className="text-[8px] uppercase font-bold text-slate-600 tracking-widest text-center mt-4 opacity-50">
-                            Basado en retiros de Bodega Central para esta patente
-                        </p>
-                    </section>
 
                     {/* Consumo Real de la OT */}
                     <section className="bg-white/5 border border-white/10 p-8 rounded-[3rem] backdrop-blur-md">

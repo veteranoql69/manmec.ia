@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { OrganizationSettings, updateOrganizationSettings } from "@/app/dashboard/settings/actions";
-import { Mail, Save, Shield, Settings2, CheckCircle2 } from "lucide-react";
+import { Mail, Save, Shield, Settings2, CheckCircle2, Globe } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function SettingsForm({ initialData }: { initialData: OrganizationSettings }) {
     const [email, setEmail] = useState(initialData.client_notification_email || "");
+    const [domains, setDomains] = useState(initialData.allowed_email_domains?.join(", ") || "");
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -14,7 +15,10 @@ export function SettingsForm({ initialData }: { initialData: OrganizationSetting
         setIsSaving(true);
         setMessage(null);
         try {
-            await updateOrganizationSettings({ client_notification_email: email });
+            await updateOrganizationSettings({
+                client_notification_email: email,
+                allowed_email_domains: domains.split(",").map(d => d.trim().toLowerCase()).filter(Boolean)
+            });
             setMessage({ type: 'success', text: 'Configuración actualizada correctamente.' });
 
             // Limpiar mensaje después de 3 segundos
@@ -100,6 +104,29 @@ export function SettingsForm({ initialData }: { initialData: OrganizationSetting
                                     Aviso: Cambiar este correo afectará el trigger de recepción de correos en tiempo real para la IA de bodega.
                                 </p>
                             </div>
+
+                            {/* Dominios Autorizados */}
+                            <div className="flex items-start gap-4 pt-6 border-t border-white/5">
+                                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+                                    <Globe className="w-6 h-6 text-emerald-400" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-sm font-black text-white uppercase tracking-widest">
+                                        Dominios Webhook Permitidos
+                                    </label>
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        Dominios de correo autorizados para gatillar creación de OTs mediante integraciones automáticas. Separe múltiples dominios con comas.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <input
+                                type="text"
+                                value={domains}
+                                onChange={(e) => setDomains(e.target.value)}
+                                placeholder="ej: copec.cl, enex.cl"
+                                className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all placeholder:text-slate-700"
+                            />
                         </div>
 
                         {/* Botón de Guardado */}

@@ -63,9 +63,9 @@ export async function getWorkOrders() {
         .from("manmec_work_orders")
         .select(`
             *,
-            station:station_id(name, address),
-            assigned_user:assigned_to(full_name),
-            vehicle:vehicle_id(plate, brand, model)
+            station:manmec_service_stations!station_id(name, address),
+            assigned_user:manmec_users!assigned_to(full_name),
+            vehicle:manmec_vehicles!vehicle_id(plate, brand, model)
         `)
         .eq("organization_id", profile.organization_id)
         .is("deleted_at", null)
@@ -91,9 +91,9 @@ export async function getWorkOrderDetail(id: string) {
         .from("manmec_work_orders")
         .select(`
             *,
-            station:station_id(name, code, address, contact_name, contact_phone),
-            assigned_user:assigned_to(full_name),
-            vehicle:vehicle_id(id, plate, brand, model)
+            station:manmec_service_stations!station_id(name, code, address, contact_name, contact_phone),
+            assigned_user:manmec_users!assigned_to(full_name),
+            vehicle:manmec_vehicles!vehicle_id(id, plate, brand, model)
         `)
         .eq("id", id)
         .single();
@@ -108,7 +108,7 @@ export async function getWorkOrderDetail(id: string) {
         .from("manmec_work_order_assignments")
         .select(`
             role,
-            mechanic:mechanic_id(full_name, email)
+            mechanic:manmec_users!mechanic_id(full_name, email)
         `)
         .eq("work_order_id", id);
 
@@ -118,33 +118,53 @@ export async function getWorkOrderDetail(id: string) {
         .select(`
             quantity,
             notes,
-            item:item_id(name, sku, unit)
+            item:manmec_inventory_items!item_id(name, sku, unit)
         `)
         .eq("work_order_id", id);
 
-    // 4. Si tiene vehículo, obtener Insumos RETIRADOS para ese vehículo (Planificación diaria)
-    let vehicleWithdrawals: any[] = [];
-    if (ot.vehicle_id) {
-        const { data: withdrawals, error: withError } = await supabase
-            .from("manmec_inventory_movements")
-            .select(`
-                quantity,
-                created_at,
-                item:item_id(name, sku, unit)
-            `)
-            .eq("vehicle_id", ot.vehicle_id)
-            .eq("type", "OUT") // Solo salidas de bodega hacia vehículo
-            .is("work_order_id", null); // Evitar duplicar los consumos directos si existen
+    // 4. Obtener el inventario "Live Stock" y herramientas del Furgón asignado si lo hay
+    let mobileWarehouse = { id: null, stock: [], tools: [] };
 
-        if (!withError) vehicleWithdrawals = withdrawals;
+    if (ot.vehicle_id) {
+        // Encontrar la bodega móvil del vehículo
+        const { data: warehouse } = await supabase
+            .from("manmec_warehouses")
+            .select("id")
+            .eq("vehicle_id", ot.vehicle_id)
+            .eq("type", "MOBILE")
+            .maybeSingle();
+
+        if (warehouse) {
+            mobileWarehouse.id = warehouse.id as any;
+
+            // Stock de Insumos abordo
+            const { data: stock } = await supabase
+                .from("manmec_inventory_stock")
+                .select(`
+                    quantity,
+                    item:manmec_inventory_items!item_id(name, sku, unit, is_sensitive)
+                `)
+                .eq("warehouse_id", warehouse.id)
+                .gt("quantity", 0);
+
+            if (stock) mobileWarehouse.stock = stock as any;
+        }
+
+        // Herramientas Asignadas al vehículo
+        const { data: tools } = await supabase
+            .from("manmec_tools")
+            .select("id, name, serial_number, status, is_critical")
+            .eq("assigned_vehicle_id", ot.vehicle_id)
+            .is("deleted_at", null);
+
+        if (tools) mobileWarehouse.tools = tools as any;
     }
 
     return {
         ...ot,
         team: team || [],
         materials: materials || [],
-        vehicle_withdrawals: vehicleWithdrawals,
-        tools: [] // Se mantiene el placeholder para futura implementación de herramientas
+        mobile_warehouse: mobileWarehouse
     };
 }
 
@@ -234,7 +254,7 @@ export async function getAvailableResources() {
     const supabase = await createClient();
 
     const [mechanics, vehicles] = await Promise.all([
-        supabase.from("manmec_users").select("id, full_name").eq("organization_id", profile.organization_id).eq("role", "MECHANIC"),
+        supabase.from("manmec_users").select("id, full_name").eq("organization_id", profile.organization_id).in("role", ["MECHANIC", "SUPERVISOR", "COMPANY_ADMIN", "MANAGER"]),
         supabase.from("manmec_vehicles").select("id, plate, brand, model").eq("organization_id", profile.organization_id).eq("is_active", true)
     ]);
 

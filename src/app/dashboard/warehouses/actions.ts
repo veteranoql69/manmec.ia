@@ -7,11 +7,14 @@ import { revalidatePath } from "next/cache";
 export type Warehouse = {
     id: string;
     organization_id: string;
+    type: string;
+    vehicle_id: string | null;
     name: string;
     address: string | null;
     is_active: boolean;
     created_at: string;
     updated_at: string;
+    vehicle?: { plate: string } | null;
 };
 
 /**
@@ -23,7 +26,7 @@ export async function getWarehouses() {
 
     const { data, error } = await supabase
         .from("manmec_warehouses")
-        .select("*")
+        .select("*, vehicle:manmec_vehicles!vehicle_id(plate)")
         .eq("organization_id", profile.organization_id)
         .order("name", { ascending: true });
 
@@ -80,5 +83,73 @@ export async function toggleWarehouseStatus(id: string, currentStatus: boolean) 
     }
 
     revalidatePath("/dashboard/warehouses");
+    return { success: true };
+}
+
+/**
+ * Transfiere insumos desde una bodega origen (ej. Fija) a una destino (ej. Móvil)
+ */
+export async function transferInventory({
+    itemId,
+    sourceWarehouseId,
+    destinationWarehouseId,
+    quantity,
+    notes
+}: {
+    itemId: string;
+    sourceWarehouseId: string;
+    destinationWarehouseId: string;
+    quantity: number;
+    notes?: string;
+}) {
+    const profile = await requireRole("SUPERVISOR");
+    const supabase = await createClient();
+
+    // Validar cantidad
+    if (quantity <= 0) {
+        throw new Error("La cantidad debe ser mayor a 0");
+    }
+
+    // El Trigger actual no procesa 'TRANSFER' deduciendo y sumando a la vez, 
+    // por lo tanto tenemos que insertar dos registros correspondientes.
+
+    // 1. Salida de la bodega de origen (Resta stock)
+    const { error: outError } = await supabase
+        .from("manmec_inventory_movements")
+        .insert({
+            item_id: itemId,
+            warehouse_id: sourceWarehouseId,
+            user_id: profile.id,
+            type: "OUT",
+            quantity: quantity,
+            reason: notes || "Transferencia (Salida)"
+        });
+
+    if (outError) {
+        console.error("Error logging OUT transfer movement:", outError);
+        throw outError;
+    }
+
+    // 2. Entrada a la bodega destino (Suma stock)
+    const { error: inError } = await supabase
+        .from("manmec_inventory_movements")
+        .insert({
+            item_id: itemId,
+            warehouse_id: destinationWarehouseId,
+            user_id: profile.id,
+            type: "IN",
+            quantity: quantity,
+            reason: notes || "Transferencia (Entrada)"
+        });
+
+    if (inError) {
+        console.error("Error logging IN transfer movement:", inError);
+        // NOTA: Para una atomicidad perfecta habría que hacer un RPC, pero como esto 
+        // es un MVP logístico, con estas dos queries validamos el flujo fundamental.
+        throw inError;
+    }
+
+    revalidatePath("/dashboard/warehouses");
+    revalidatePath("/dashboard/inventory");
     return { success: true };
 }

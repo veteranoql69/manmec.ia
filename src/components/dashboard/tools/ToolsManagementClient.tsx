@@ -18,7 +18,8 @@ import {
     History,
     Filter,
     Printer,
-    Camera
+    Camera,
+    Box
 } from "lucide-react";
 import { Tool, deleteTool, ToolStatus } from "@/app/dashboard/tools/actions";
 import { ToolModal } from "./ToolModal";
@@ -29,6 +30,7 @@ interface Props {
     initialTools: Tool[];
     members: any[];
     vehicles: any[];
+    warehouses: any[];
 }
 
 const STATUS_MAP: Record<ToolStatus, { label: string, color: string, icon: any }> = {
@@ -39,7 +41,7 @@ const STATUS_MAP: Record<ToolStatus, { label: string, color: string, icon: any }
     retired: { label: 'De Baja', color: 'slate', icon: History }
 };
 
-export function ToolsManagementClient({ initialTools, members, vehicles }: Props) {
+export function ToolsManagementClient({ initialTools, members, vehicles, warehouses }: Props) {
     const [tools, setTools] = useState<Tool[]>(initialTools);
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState<ToolStatus | 'all'>('all');
@@ -209,8 +211,13 @@ export function ToolsManagementClient({ initialTools, members, vehicles }: Props
                                                     <Truck className="w-3 h-3" />
                                                     {tool.assigned_vehicle.plate}
                                                 </div>
+                                            ) : tool.assigned_warehouse ? (
+                                                <div className="flex items-center gap-1.5 bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded-lg">
+                                                    <Box className="w-3 h-3" />
+                                                    {tool.assigned_warehouse.name}
+                                                </div>
                                             ) : (
-                                                <span className="text-slate-600 italic">Sin asignar (En Bodega)</span>
+                                                <span className="text-slate-600 italic">Sin asignar</span>
                                             )}
                                         </div>
                                     </div>
@@ -239,6 +246,7 @@ export function ToolsManagementClient({ initialTools, members, vehicles }: Props
                     }}
                     members={members}
                     vehicles={vehicles}
+                    warehouses={warehouses}
                 />
             )}
             {showGlobalScanner && (

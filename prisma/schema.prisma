@@ -76,17 +76,18 @@ enum ManmecActionSeverity {
 // Tenant / Empresa
 // -----------------------------------------------------------
 model ManmecOrganization {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name            String
-  rut             String?   @unique
-  logo_url        String?
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                      String
+  rut                       String?   @unique
+  logo_url                  String?
   plan                      String    @default("free")
   allowed_domains           String[]  @default([])
+  allowed_email_domains     String[]  @default([])
   client_notification_email String?   @default("bodega@manmec.cl")
   settings                  Json?     @default("{}")
   created_at                DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
-  deleted_at      DateTime? @db.Timestamptz(6)
+  updated_at                DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at                DateTime? @db.Timestamptz(6)
 
   users                  ManmecUser[]
   supervisor_assignments ManmecSupervisorAssignment[]
@@ -101,6 +102,7 @@ model ManmecOrganization {
   vehicles               ManmecVehicle[]
   tools                  ManmecTool[]
   shipments              ManmecShipment[]
+  warehouses             ManmecWarehouse[]
 
   @@map("manmec_organizations")
 }
@@ -172,6 +174,8 @@ model ManmecServiceStation {
   longitude       Float?
   contact_name    String?
   contact_phone   String?
+  manager_name    String?
+  manager_phone   String?
   is_active       Boolean   @default(true)
   created_at      DateTime  @default(now()) @db.Timestamptz(6)
   updated_at      DateTime  @default(now()) @db.Timestamptz(6)
@@ -199,11 +203,33 @@ model ManmecServiceStation {
 
   organization        ManmecOrganization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   work_orders         ManmecWorkOrder[]
-  inventory_stock     ManmecInventoryStock[]
   inventory_movements ManmecInventoryMovement[]
   route_stops         ManmecRouteStop[]
 
   @@map("manmec_service_stations")
+}
+
+// -----------------------------------------------------------
+// Bodegas (Centros de Logística y Furgones Móviles)
+// -----------------------------------------------------------
+model ManmecWarehouse {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id String   @db.Uuid
+  type            String   @default("FIXED")
+  vehicle_id      String?  @unique @db.Uuid
+  name            String
+  address         String?
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  organization        ManmecOrganization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  vehicle             ManmecVehicle?            @relation(fields: [vehicle_id], references: [id])
+  inventory_stock     ManmecInventoryStock[]
+  inventory_movements ManmecInventoryMovement[]
+  incoming_shipments  ManmecShipment[]
+
+  @@map("manmec_warehouses")
 }
 
 // -----------------------------------------------------------
@@ -269,9 +295,11 @@ model ManmecVehicle {
   updated_at      DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at      DateTime? @db.Timestamptz(6)
 
-  organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-  work_orders  ManmecWorkOrder[]
-  tools        ManmecTool[]
+  organization             ManmecOrganization        @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  work_orders              ManmecWorkOrder[]
+  tools                    ManmecTool[]
+  manmecInventoryMovements ManmecInventoryMovement[]
+  mobile_warehouse         ManmecWarehouse?
 
   @@map("manmec_vehicles")
 }
@@ -309,22 +337,25 @@ model ManmecTool {
 // Recepción de Camiones / Guías de Despacho
 // -----------------------------------------------------------
 model ManmecShipment {
-  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organization_id      String   @db.Uuid
-  supplier_name        String?
-  dispatch_note_number String?
-  dispatch_note_url    String?
-  external_id          String?
-  order_number         String?
-  ocr_data             Json?
-  status               String   @default("PENDING")
-  received_by          String?  @db.Uuid
-  created_at           DateTime @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime @default(now()) @db.Timestamptz(6)
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id          String   @db.Uuid
+  supplier_name            String?
+  dispatch_note_number     String?
+  dispatch_note_url        String?
+  external_id              String?
+  order_number             String?
+  ocr_data                 Json?
+  status                   String   @default("PENDING")
+  received_by              String?  @db.Uuid
+  destination_warehouse_id String?  @db.Uuid
+  created_at               DateTime @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime @default(now()) @db.Timestamptz(6)
 
-  organization ManmecOrganization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-  items        ManmecShipmentItem[]
+  organization          ManmecOrganization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  destination_warehouse ManmecWarehouse?     @relation(fields: [destination_warehouse_id], references: [id])
+  items                 ManmecShipmentItem[]
 
+  @@unique([organization_id, dispatch_note_number])
   @@map("manmec_shipments")
 }
 
@@ -468,19 +499,19 @@ model ManmecInventoryItem {
 }
 
 // -----------------------------------------------------------
-// Inventario: Stock por estación (solo actualizable vía trigger)
+// Inventario: Stock por bodega (solo actualizable vía trigger)
 // -----------------------------------------------------------
 model ManmecInventoryStock {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  item_id    String   @db.Uuid
-  station_id String   @db.Uuid
-  quantity   Decimal  @default(0)
-  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id      String   @db.Uuid
+  warehouse_id String   @db.Uuid
+  quantity     Decimal  @default(0)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
 
-  item    ManmecInventoryItem  @relation(fields: [item_id], references: [id], onDelete: Cascade)
-  station ManmecServiceStation @relation(fields: [station_id], references: [id], onDelete: Cascade)
+  item      ManmecInventoryItem @relation(fields: [item_id], references: [id], onDelete: Cascade)
+  warehouse ManmecWarehouse     @relation(fields: [warehouse_id], references: [id], onDelete: Cascade)
 
-  @@unique([item_id, station_id])
+  @@unique([item_id, warehouse_id])
   @@map("manmec_inventory_stock")
 }
 
@@ -490,7 +521,9 @@ model ManmecInventoryStock {
 model ManmecInventoryMovement {
   id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   item_id       String             @db.Uuid
-  station_id    String             @db.Uuid
+  station_id    String?            @db.Uuid
+  warehouse_id  String?            @db.Uuid
+  vehicle_id    String?            @db.Uuid
   user_id       String             @db.Uuid
   work_order_id String?            @db.Uuid
   type          ManmecMovementType
@@ -498,10 +531,12 @@ model ManmecInventoryMovement {
   reason        String?
   created_at    DateTime           @default(now()) @db.Timestamptz(6)
 
-  item       ManmecInventoryItem  @relation(fields: [item_id], references: [id])
-  station    ManmecServiceStation @relation(fields: [station_id], references: [id])
-  user       ManmecUser           @relation(fields: [user_id], references: [id])
-  work_order ManmecWorkOrder?     @relation(fields: [work_order_id], references: [id])
+  item       ManmecInventoryItem   @relation(fields: [item_id], references: [id])
+  station    ManmecServiceStation? @relation(fields: [station_id], references: [id])
+  warehouse  ManmecWarehouse?      @relation(fields: [warehouse_id], references: [id])
+  vehicle    ManmecVehicle?        @relation(fields: [vehicle_id], references: [id])
+  user       ManmecUser            @relation(fields: [user_id], references: [id])
+  work_order ManmecWorkOrder?      @relation(fields: [work_order_id], references: [id])
 
   @@map("manmec_inventory_movements")
 }

@@ -7,15 +7,17 @@ import {
     Save,
     Wrench,
     Hash,
-    Tag,
-    Info,
     User,
     Truck,
     Box,
     AlertTriangle,
-    Camera
+    Camera,
+    Sparkles,
+    Loader2,
+    Info
 } from "lucide-react";
 import { Tool, upsertTool, ToolStatus } from "@/app/dashboard/tools/actions";
+import { analyzeToolImage } from "@/app/dashboard/tools/vision";
 import { ToolScanner } from "./ToolScanner";
 
 interface Props {
@@ -25,12 +27,14 @@ interface Props {
     onSuccess: () => void;
     members: any[];
     vehicles: any[];
+    warehouses: any[];
 }
 
-export function ToolModal({ isOpen, onClose, tool, onSuccess, members, vehicles }: Props) {
+export function ToolModal({ isOpen, onClose, tool, onSuccess, members, vehicles, warehouses }: Props) {
     const [loading, setLoading] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
-    const [assignmentType, setAssignmentType] = useState<'none' | 'user' | 'vehicle'>('none');
+    const [assignmentType, setAssignmentType] = useState<'none' | 'user' | 'vehicle' | 'warehouse'>('none');
     const [formData, setFormData] = useState<Partial<Tool>>({
         name: "",
         serial_number: "",
@@ -39,7 +43,8 @@ export function ToolModal({ isOpen, onClose, tool, onSuccess, members, vehicles 
         category: "",
         status: "available",
         assigned_user_id: null,
-        assigned_vehicle_id: null
+        assigned_vehicle_id: null,
+        assigned_warehouse_id: null
     });
 
     useEffect(() => {
@@ -47,7 +52,8 @@ export function ToolModal({ isOpen, onClose, tool, onSuccess, members, vehicles 
             setFormData(tool);
             if (tool.assigned_user_id) setAssignmentType('user');
             else if (tool.assigned_vehicle_id) setAssignmentType('vehicle');
-            else setAssignmentType('none');
+            else if (tool.assigned_warehouse_id) setAssignmentType('warehouse');
+            else setAssignmentType('warehouse'); // Default to warehouse for unassigned tools conceptually
         }
     }, [tool]);
 
@@ -59,10 +65,16 @@ export function ToolModal({ isOpen, onClose, tool, onSuccess, members, vehicles 
         if (assignmentType === 'none') {
             dataToSubmit.assigned_user_id = null;
             dataToSubmit.assigned_vehicle_id = null;
+            dataToSubmit.assigned_warehouse_id = null;
         } else if (assignmentType === 'user') {
             dataToSubmit.assigned_vehicle_id = null;
-        } else {
+            dataToSubmit.assigned_warehouse_id = null;
+        } else if (assignmentType === 'vehicle') {
             dataToSubmit.assigned_user_id = null;
+            dataToSubmit.assigned_warehouse_id = null;
+        } else if (assignmentType === 'warehouse') {
+            dataToSubmit.assigned_user_id = null;
+            dataToSubmit.assigned_vehicle_id = null;
         }
 
         try {
@@ -78,9 +90,44 @@ export function ToolModal({ isOpen, onClose, tool, onSuccess, members, vehicles 
         }
     };
 
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsAnalyzing(true);
+        try {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onloadend = async () => {
+                const base64data = (reader.result as string).split(',')[1];
+
+                const result = await analyzeToolImage(base64data, file.type);
+
+                if (result.success && result.data) {
+                    const aiData = result.data;
+                    setFormData(prev => ({
+                        ...prev,
+                        name: aiData.name || prev.name,
+                        brand: aiData.brand || prev.brand,
+                        model: aiData.model || prev.model,
+                        serial_number: aiData.serial_number || prev.serial_number,
+                        category: aiData.category || prev.category
+                    }));
+                } else {
+                    alert(result.error || "No se pudo extraer información clara de la imagen.");
+                }
+                setIsAnalyzing(false);
+            };
+        } catch (error) {
+            console.error(error);
+            alert("Error procesando imagen local");
+            setIsAnalyzing(false);
+        }
+    };
+
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div key="modal-backdrop" className="fixed inset-0 z-50 flex items-center justify-center p-4">
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -111,9 +158,52 @@ export function ToolModal({ isOpen, onClose, tool, onSuccess, members, vehicles 
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-8">
+                            {/* Primer Paso: Identificación (Full Width) */}
+                            <div className="space-y-4 p-5 bg-indigo-500/5 rounded-3xl border border-indigo-500/10">
+                                <label className="text-[10px] uppercase font-black text-indigo-400 tracking-widest ml-1 flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3" /> 1. Identificación Inteligente
+                                </label>
+                                <div className="flex flex-col sm:flex-row gap-4">
+                                    <div className="relative flex-1 group">
+                                        <input
+                                            required
+                                            className="w-full bg-black/50 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 font-mono tracking-wider uppercase transition-all"
+                                            placeholder="N° SERIE / CÓDIGO QR"
+                                            value={formData.serial_number}
+                                            onChange={e => setFormData({ ...formData, serial_number: e.target.value })}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowScanner(true)}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-indigo-600/20 text-indigo-400 rounded-xl hover:bg-indigo-600/40 transition-all border border-indigo-500/30 group-hover:scale-105"
+                                            title="Escanear con cámara"
+                                        >
+                                            <Camera className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => document.getElementById('ai-image-upload')?.click()}
+                                        disabled={isAnalyzing}
+                                        className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl px-6 py-4 flex items-center justify-center gap-2 transition-all font-black text-sm tracking-tight whitespace-nowrap shadow-lg shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
+                                    >
+                                        {isAnalyzing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                                        <span>{isAnalyzing ? "Analizando..." : "Autocompletar con Foto"}</span>
+                                    </button>
+                                    <input
+                                        type="file"
+                                        id="ai-image-upload"
+                                        accept="image/*"
+                                        capture="environment"
+                                        className="hidden"
+                                        onChange={handleImageUpload}
+                                    />
+                                </div>
+                            </div>
+
                             {/* Información Básica */}
                             <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2 col-span-2">
+                                <div className="space-y-2 col-span-2 sm:col-span-1">
                                     <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">Nombre de Herramienta</label>
                                     <input
                                         required
@@ -122,28 +212,6 @@ export function ToolModal({ isOpen, onClose, tool, onSuccess, members, vehicles 
                                         value={formData.name}
                                         onChange={e => setFormData({ ...formData, name: e.target.value })}
                                     />
-                                </div>
-                                <div className="space-y-2 col-span-2 sm:col-span-1">
-                                    <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1 flex items-center gap-1">
-                                        <Hash className="w-3 h-3" /> N° de Serie
-                                    </label>
-                                    <div className="relative group">
-                                        <input
-                                            required
-                                            className="w-full bg-black/50 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono tracking-wider uppercase transition-all"
-                                            placeholder="SN-123456"
-                                            value={formData.serial_number}
-                                            onChange={e => setFormData({ ...formData, serial_number: e.target.value })}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowScanner(true)}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-blue-600/20 text-blue-400 rounded-xl hover:bg-blue-600/40 transition-all border border-blue-500/30 group-hover:scale-105"
-                                            title="Escanear con cámara"
-                                        >
-                                            <Camera className="w-5 h-5" />
-                                        </button>
-                                    </div>
                                 </div>
                                 <div className="space-y-2 col-span-2 sm:col-span-1">
                                     <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">Estado</label>
@@ -190,7 +258,7 @@ export function ToolModal({ isOpen, onClose, tool, onSuccess, members, vehicles 
 
                                 <div className="grid grid-cols-3 gap-2">
                                     {[
-                                        { id: 'none', label: 'Libre', icon: Box },
+                                        { id: 'warehouse', label: 'Bodega', icon: Box },
                                         { id: 'user', label: 'Técnico', icon: User },
                                         { id: 'vehicle', label: 'Vehículo', icon: Truck }
                                     ].map(type => {
@@ -237,6 +305,22 @@ export function ToolModal({ isOpen, onClose, tool, onSuccess, members, vehicles 
                                             <option value="">Seleccionar Vehículo...</option>
                                             {vehicles.map(v => (
                                                 <option key={v.id} value={v.id}>{v.plate} - {v.brand} {v.model}</option>
+                                            ))}
+                                        </select>
+                                    </motion.div>
+                                )}
+
+                                {assignmentType === 'warehouse' && (
+                                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 mt-4">
+                                        <select
+                                            required
+                                            className="w-full bg-black border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none font-bold appearance-none cursor-pointer"
+                                            value={formData.assigned_warehouse_id || ""}
+                                            onChange={e => setFormData({ ...formData, assigned_warehouse_id: e.target.value })}
+                                        >
+                                            <option value="">Seleccionar Bodega...</option>
+                                            {warehouses.map(w => (
+                                                <option key={w.id} value={w.id}>{w.name}</option>
                                             ))}
                                         </select>
                                     </motion.div>

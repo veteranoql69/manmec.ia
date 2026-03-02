@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
         // El 'to' debe coincidir con el client_notification_email configurado
         const { data: org, error: orgError } = await supabase
             .from("manmec_organizations")
-            .select("id, name, client_notification_email")
+            .select("id, name, client_notification_email, allowed_email_domains")
             .eq("client_notification_email", to)
             .maybeSingle();
 
@@ -30,6 +30,16 @@ export async function POST(req: NextRequest) {
         if (!org) {
             console.error(`❌ Organización no encontrada para el correo: ${to}`);
             return NextResponse.json({ error: `Organization not found for email: ${to}` }, { status: 404 });
+        }
+
+        // 1.5. CAPA DE SEGURIDAD: Validación de Remitente (Allowlist)
+        const allowedDomains = org.allowed_email_domains || [];
+        const isAuthorized = allowedDomains.some((domain: string) => from.toLowerCase().includes(domain.toLowerCase()));
+
+        if (!isAuthorized && allowedDomains.length > 0) {
+            console.warn(`🚨 Intento de inyección bloqueado para Org [${org.name}]. Remitente no autorizado: ${from}`);
+            // Devolver un falso positivo o un 403 para evitar dar información a atacantes externos
+            return NextResponse.json({ error: "Unauthorized sender domain" }, { status: 403 });
         }
 
         // 2. Procesar con IA
