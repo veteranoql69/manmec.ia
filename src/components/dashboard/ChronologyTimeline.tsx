@@ -13,8 +13,10 @@ import {
     ClipboardList,
     ChevronDown,
     ChevronRight,
-    Sparkles
+    Sparkles,
+    ExternalLink
 } from "lucide-react";
+import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -137,9 +139,15 @@ export function ChronologyTimeline({ activities }: { activities: Activity[] }) {
                                                     </p>
                                                     <div className="flex items-center gap-2 mt-1.5">
                                                         {group.otId && (
-                                                            <span className="text-[9px] bg-white/5 border border-white/10 px-1.5 py-0.5 rounded font-mono text-slate-400">
-                                                                OT: {group.otId}
-                                                            </span>
+                                                            <Link
+                                                                href={`/dashboard/ots/${group.otId}`}
+                                                                target="_blank"
+                                                                className="flex items-center gap-1 text-[9px] bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded font-mono text-blue-400 hover:bg-blue-500/20 transition-all group/link"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                OT: {group.otId.slice(0, 8)}
+                                                                <ExternalLink className="w-2 h-2 opacity-50 group-hover/link:opacity-100" />
+                                                            </Link>
                                                         )}
                                                         <span className="text-[9px] text-slate-600 uppercase font-black tracking-widest">
                                                             {group.type}

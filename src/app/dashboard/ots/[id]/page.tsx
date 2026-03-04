@@ -263,16 +263,6 @@ export default async function OTDetailPage({ params }: PageProps) {
                         </section>
                     )}
 
-                    {/* Historial / Timeline */}
-                    <ChronologyTimeline
-                        activities={(ot.timeline || []).map((t: any) => ({
-                            id: t.id,
-                            content: t.content,
-                            timestamp: t.created_at,
-                            type: t.entry_type,
-                            userName: t.user?.full_name || 'Sistema'
-                        }))}
-                    />
                 </div>
             </div>
         </div>
