@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChronologyTimeline } from "@/components/dashboard/ChronologyTimeline";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -212,10 +213,10 @@ export default async function OTDetailPage({ params }: PageProps) {
                     <MobileWarehouseTabs ot={ot} />
 
 
-                    {/* Consumo Real de la OT */}
+                    {/* Consumo Real de la OT (Registrado manualmente o via furgón) */}
                     <section className="bg-white/5 border border-white/10 p-8 rounded-[3rem] backdrop-blur-md">
                         <h3 className="font-bold text-lg mb-6 flex items-center gap-3">
-                            <CheckCircle2 className="text-emerald-500 w-5 h-5" /> Consumido en OT
+                            <CheckCircle2 className="text-emerald-500 w-5 h-5" /> Insumos Registrados
                         </h3>
 
                         <div className="space-y-3">
@@ -234,11 +235,44 @@ export default async function OTDetailPage({ params }: PageProps) {
                                 ))
                             ) : (
                                 <div className="p-6 bg-white/5 rounded-[2rem] text-center border border-dashed border-white/10">
-                                    <p className="text-xs text-slate-600">No se ha reportado consumo de insumos aún.</p>
+                                    <p className="text-xs text-slate-600">No se han registrado insumos manualmente.</p>
                                 </div>
                             )}
                         </div>
                     </section>
+
+                    {/* Detección de Insumos por IA (Extraído de PDF) */}
+                    {ot.metadata?.repuestos && ot.metadata.repuestos.length > 0 && (
+                        <section className="bg-blue-600/5 border border-blue-500/20 p-8 rounded-[3rem] backdrop-blur-md">
+                            <h3 className="font-bold text-lg mb-6 flex items-center gap-3">
+                                <Activity className="text-blue-400 w-5 h-5" /> Detectado por IA (PDF)
+                            </h3>
+                            <div className="space-y-3">
+                                {ot.metadata.repuestos.map((rep: any, idx: number) => (
+                                    <div key={idx} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl">
+                                        <div>
+                                            <p className="text-sm font-bold text-blue-100">{rep.nombre}</p>
+                                            <p className="text-[10px] text-slate-500 italic">Código: {rep.codigo || 'N/A'}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-lg font-black text-blue-400">{rep.cantidad}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
+                    {/* Historial / Timeline */}
+                    <ChronologyTimeline
+                        activities={(ot.timeline || []).map((t: any) => ({
+                            id: t.id,
+                            content: t.content,
+                            timestamp: t.created_at,
+                            type: t.entry_type,
+                            userName: t.user?.full_name || 'Sistema'
+                        }))}
+                    />
                 </div>
             </div>
         </div>

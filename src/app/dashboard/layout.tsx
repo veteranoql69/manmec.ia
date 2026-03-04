@@ -13,6 +13,7 @@ import {
     Users,
     Warehouse
 } from "lucide-react";
+import AiChatWidget from "@/components/dashboard/AiChatWidget";
 
 export default async function DashboardLayout({
     children,
@@ -49,6 +50,7 @@ export default async function DashboardLayout({
                         <div className="pt-4 pb-2 px-4">
                             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Configuración Base</p>
                         </div>
+                        <SidebarLink href="/dashboard/settings/ai" icon={<BrainCircuit size={20} />} label="Asistente IA" />
                         <SidebarLink href="/dashboard/stations" icon={<LayoutDashboard size={20} />} label="Estaciones de Servicio" />
                         <SidebarLink href="/dashboard/team" icon={<Users size={20} />} label="Equipo de trabajo" />
                     </nav>
@@ -89,6 +91,9 @@ export default async function DashboardLayout({
                     {children}
                 </main>
             </div>
+
+            {/* Asistente IA Flotante */}
+            <AiChatWidget />
         </div>
     );
 }

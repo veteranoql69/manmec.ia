@@ -12,10 +12,12 @@ import {
     Edit3,
     Hash,
     Calendar,
-    Gauge
+    Gauge,
+    Package
 } from "lucide-react";
 import { Vehicle, toggleVehicleStatus } from "@/app/dashboard/fleet/actions";
 import { VehicleModal } from "./VehicleModal";
+import { VehicleAuditModal } from "./VehicleAuditModal";
 
 interface Props {
     initialVehicles: Vehicle[];
@@ -26,6 +28,7 @@ export function FleetManagementClient({ initialVehicles }: Props) {
     const [search, setSearch] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+    const [auditVehicle, setAuditVehicle] = useState<Vehicle | null>(null);
 
     const filteredVehicles = useMemo(() => {
         return vehicles.filter(v =>
@@ -99,6 +102,13 @@ export function FleetManagementClient({ initialVehicles }: Props) {
                                 </div>
                                 <div className="flex gap-2">
                                     <button
+                                        onClick={() => setAuditVehicle(vehicle)}
+                                        className="hidden group-hover:flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white rounded-xl text-xs font-bold transition-all border border-blue-500/30 shadow-inner"
+                                    >
+                                        <Package className="w-3.5 h-3.5" />
+                                        <span>LIVE STOCK</span>
+                                    </button>
+                                    <button
                                         onClick={() => handleEdit(vehicle)}
                                         className="p-2 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-all"
                                     >
@@ -126,7 +136,7 @@ export function FleetManagementClient({ initialVehicles }: Props) {
                                     <p className="text-[10px] uppercase font-bold text-slate-600 tracking-widest flex items-center gap-1">
                                         <Gauge className="w-3 h-3" /> Kilometraje
                                     </p>
-                                    <p className="text-sm font-bold">{Number(vehicle.last_mileage).toLocaleString()} km</p>
+                                    <p className="text-sm font-bold">{Number(vehicle.last_mileage).toLocaleString('es-CL')} km</p>
                                 </div>
                                 <div className="space-y-1 text-right">
                                     <p className="text-[10px] uppercase font-bold text-slate-600 tracking-widest flex items-center gap-1 justify-end">
@@ -162,6 +172,14 @@ export function FleetManagementClient({ initialVehicles }: Props) {
                             setVehicles(prev => [...prev, newVehicle].sort((a, b) => a.plate.localeCompare(b.plate)));
                         }
                     }}
+                />
+            )}
+
+            {auditVehicle && (
+                <VehicleAuditModal
+                    isOpen={!!auditVehicle}
+                    onClose={() => setAuditVehicle(null)}
+                    vehicle={auditVehicle}
                 />
             )}
         </div>

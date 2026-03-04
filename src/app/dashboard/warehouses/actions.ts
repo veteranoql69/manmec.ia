@@ -153,3 +153,94 @@ export async function transferInventory({
     revalidatePath("/dashboard/inventory");
     return { success: true };
 }
+
+/**
+ * Recopila todos los datos 360 de una bodega (Insumos, Herramientas, Movimientos recientes)
+ */
+export async function getWarehouseAuditData(warehouseId: string) {
+    const profile = await requireRole("SUPERVISOR");
+    const supabase = await createClient();
+
+    // 1. Obtener la bodega en sí con su vehículo asignado
+    const { data: warehouse, error: wError } = await supabase
+        .from("manmec_warehouses")
+        .select("*, vehicle:manmec_vehicles!vehicle_id(plate, brand, model)")
+        .eq("id", warehouseId)
+        .eq("organization_id", profile.organization_id)
+        .single();
+
+    if (wError) {
+        console.error("Error fetching warehouse:", wError);
+        throw wError;
+    }
+
+    // 2. Obtener inventario actual en esta bodega (Insumos) cruzado con el nombre
+    const { data: stockItems, error: stockError } = await supabase
+        .from("manmec_inventory_stock")
+        .select(`
+            id,
+            quantity,
+            item:manmec_inventory_items (
+                id,
+                name,
+                sku,
+                unit
+            )
+        `)
+        .eq("warehouse_id", warehouseId);
+
+    if (stockError) console.error("Error fetching warehouse stock:", stockError);
+
+    const items = stockItems?.map((s) => ({
+        id: (s.item as any).id,
+        name: (s.item as any).name,
+        sku: (s.item as any).sku,
+        unit: (s.item as any).unit,
+        current_stock: s.quantity
+    })) || [];
+
+    // 3. Obtener Herramientas Asignadas
+    const { data: tools, error: tError } = await supabase
+        .from("manmec_tools")
+        .select("id, name, serial_number, brand, status")
+        .eq("assigned_warehouse_id", warehouseId)
+        .eq("organization_id", profile.organization_id);
+
+    if (tError) console.error("Error fetching assigned tools:", tError);
+
+    // 4. Obtener Movimientos Recientes (15 días) o simplemente las últimas 30 transacciones
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { data: movements, error: mError } = await supabase
+        .from("manmec_inventory_movements")
+        .select(`
+            id,
+            type,
+            quantity,
+            reason,
+            created_at,
+            item:manmec_inventory_items (name),
+            user:manmec_users!user_id (full_name)
+        `)
+        .eq("warehouse_id", warehouseId)
+        .gte("created_at", thirtyDaysAgo.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+    if (mError) console.error("Error fetching recent movements:", mError);
+
+    // Mapear los movimientos
+    const mappedMovements = movements?.map(m => ({
+        ...m,
+        item_name: (m.item as any)?.name || 'Desconocido',
+        user_name: (m.user as any)?.full_name || 'Sistema'
+    })) || [];
+
+    return {
+        warehouse,
+        items,
+        tools: tools || [],
+        movements: mappedMovements
+    };
+}

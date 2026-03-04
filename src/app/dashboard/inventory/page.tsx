@@ -55,11 +55,48 @@ export default async function InventoryPage({
         };
     }) || [];
 
+    // 4. Consultar herramientas disponibles
+    const { data: tools, error: toolsError } = await supabase
+        .from("manmec_tools")
+        .select("*")
+        .eq("organization_id", profile.organization_id!)
+        .order("name", { ascending: true });
+
+    if (toolsError) {
+        console.error("Error al cargar herramientas:", toolsError);
+    }
+
+    // 5. Consultar traspasos entrantes pendientes para las bodegas donde el usuario tiene acceso
+    const { data: pendingTransfers, error: pendingError } = await supabase
+        .from("manmec_inventory_transfers")
+        .select(`
+            id,
+            quantity,
+            created_at,
+            item:manmec_inventory_items(name, sku),
+            tool:manmec_tools(name, serial_number),
+            sender:manmec_users!manmec_inventory_transfers_sender_id_fkey(full_name),
+            from_warehouse:manmec_warehouses!manmec_inventory_transfers_from_warehouse_id_fkey(name)
+        `)
+        .eq("organization_id", profile.organization_id!)
+        .eq("status", "PENDING")
+        .order("created_at", { ascending: false });
+
+    if (pendingError) {
+        console.error("DEBUG FETCHING TRANSFERS ERROR:", pendingError);
+    }
+
     return (
         <div className="p-4 md:p-8">
             <div className="max-w-6xl mx-auto space-y-8">
                 {/* Componente Cliente para Filtros, Cambio de Vista, Bodegas y Creación */}
-                <InventoryClient initialItems={enrichedItems} warehouses={warehouses || []} initialWarehouseId={initialWarehouseId} />
+                <InventoryClient
+                    initialItems={enrichedItems}
+                    initialTools={tools || []}
+                    warehouses={warehouses || []}
+                    initialWarehouseId={initialWarehouseId}
+                    pendingTransfers={pendingTransfers || []}
+                />
             </div>
         </div>
     );

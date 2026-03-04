@@ -50,6 +50,15 @@ export type WorkOrder = {
         quantity: number;
         created_at: string;
     }>;
+    timeline?: Array<{
+        id: string;
+        content: string | null;
+        created_at: string;
+        entry_type: string;
+        user: { full_name: string };
+    }>;
+    metadata?: any;
+    mobile_warehouse?: any;
 };
 
 /**
@@ -122,6 +131,16 @@ export async function getWorkOrderDetail(id: string) {
         `)
         .eq("work_order_id", id);
 
+    // 3.5 Obtener Timeline (Historial)
+    const { data: timeline, error: timelineError } = await supabase
+        .from("manmec_work_order_timeline")
+        .select(`
+            *,
+            user:manmec_users!user_id(full_name)
+        `)
+        .eq("work_order_id", id)
+        .order("created_at", { ascending: false });
+
     // 4. Obtener el inventario "Live Stock" y herramientas del Furgón asignado si lo hay
     let mobileWarehouse = { id: null, stock: [], tools: [] };
 
@@ -138,32 +157,37 @@ export async function getWorkOrderDetail(id: string) {
             mobileWarehouse.id = warehouse.id as any;
 
             // Stock de Insumos abordo
-            const { data: stock } = await supabase
+            const { data: stock, error: stockError } = await supabase
                 .from("manmec_inventory_stock")
                 .select(`
                     quantity,
-                    item:manmec_inventory_items!item_id(name, sku, unit, is_sensitive)
+                    item:manmec_inventory_items!inner(name, sku, unit, is_sensitive)
                 `)
                 .eq("warehouse_id", warehouse.id)
                 .gt("quantity", 0);
 
+            if (stockError) console.error("Error fetching mobile warehouse stock:", stockError);
             if (stock) mobileWarehouse.stock = stock as any;
         }
 
-        // Herramientas Asignadas al vehículo
-        const { data: tools } = await supabase
-            .from("manmec_tools")
-            .select("id, name, serial_number, status, is_critical")
-            .eq("assigned_vehicle_id", ot.vehicle_id)
-            .is("deleted_at", null);
+        // Herramientas Asignadas al vehículo (vía su Bodega Móvil)
+        if (warehouse) {
+            const { data: tools, error: toolsError } = await supabase
+                .from("manmec_tools")
+                .select("id, name, serial_number, status, criticality")
+                .eq("assigned_warehouse_id", warehouse.id)
+                .is("deleted_at", null);
 
-        if (tools) mobileWarehouse.tools = tools as any;
+            if (toolsError) console.error("Error fetching mobile warehouse tools:", toolsError);
+            if (tools) mobileWarehouse.tools = tools as any;
+        }
     }
 
     return {
         ...ot,
         team: team || [],
         materials: materials || [],
+        timeline: timeline || [],
         mobile_warehouse: mobileWarehouse
     };
 }

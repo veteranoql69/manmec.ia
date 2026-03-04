@@ -1,59 +1,28 @@
-import { PrismaClient } from './src/generated/prisma';
+import { createClient } from "@supabase/supabase-js";
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 
-const prisma = new PrismaClient();
+// Initialize Supabase with service role key to bypass RLS for diagnostic purposes
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-async function main() {
-    console.log("=== CHECKING DATABASE CONTENT ===");
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Get Organizations
-    const orgs = await prisma.manmecOrganization.findMany();
-    console.log("\n--- Organizations ---");
-    console.log(JSON.stringify(orgs, null, 2));
+async function checkDatabase() {
+    console.log("Checking if manmec_inventory_transfers table exists...");
 
-    // 2. Get Users
-    const users = await prisma.manmecUser.findMany({
-        select: { id: true, full_name: true, role: true, email: true } // Assuming email exists in Auth, but manmec_users might not have it directly. Let's just get what's there.
-    });
-    console.log("\n--- Users (first 5) ---");
-    console.log(JSON.stringify(users.slice(0, 5), null, 2));
+    // Attempt to query the table
+    const { data: testData, error: testError } = await supabase
+        .from("manmec_inventory_transfers")
+        .select("id")
+        .limit(1);
 
-    // 3. Get Stations
-    const stations = await prisma.manmecServiceStation.findMany({ select: { id: true, name: true, code: true } });
-    console.log("\n--- Stations (first 5) ---");
-    console.log(JSON.stringify(stations.slice(0, 5), null, 2));
-
-    // 4. Get Vehicles
-    const vehicles = await prisma.manmecVehicle.findMany({ select: { id: true, plate: true, brand: true } });
-    console.log("\n--- Vehicles ---");
-    console.log(JSON.stringify(vehicles, null, 2));
-
-    // 5. Get Work Orders
-    const ots = await prisma.manmecWorkOrder.findMany({
-        include: {
-            station: true,
-            vehicle: true,
-            creator: true,
-            assignee: true,
-            assignments: {
-                include: { mechanic: true }
-            },
-            materials: {
-                include: { item: true }
-            }
-        }
-    });
-
-    console.log("\n--- Work Orders ---");
-    console.log(JSON.stringify(ots, null, 2));
-
+    if (testError) {
+        console.log("Table check failed with error:", testError);
+        console.log("Did you run the 008 migration SQL script?");
+    } else {
+        console.log("Table exists! Error must be elsewhere.");
+    }
 }
 
-main()
-    .then(async () => {
-        await prisma.$disconnect()
-    })
-    .catch(async (e) => {
-        console.error(e)
-        await prisma.$disconnect()
-        process.exit(1)
-    })
+checkDatabase();

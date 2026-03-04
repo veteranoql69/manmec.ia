@@ -85,6 +85,7 @@ model ManmecOrganization {
   allowed_email_domains     String[]  @default([])
   client_notification_email String?   @default("bodega@manmec.cl")
   settings                  Json?     @default("{}")
+  ai_settings               Json?     @default("{}")
   created_at                DateTime  @default(now()) @db.Timestamptz(6)
   updated_at                DateTime  @default(now()) @db.Timestamptz(6)
   deleted_at                DateTime? @db.Timestamptz(6)
@@ -103,6 +104,7 @@ model ManmecOrganization {
   tools                  ManmecTool[]
   shipments              ManmecShipment[]
   warehouses             ManmecWarehouse[]
+  inventory_transfers    ManmecInventoryTransfer[]
 
   @@map("manmec_organizations")
 }
@@ -116,6 +118,7 @@ model ManmecUser {
   role              ManmecUserRole?
   full_name         String          @default("")
   phone             String?
+  telegram_chat_id  String?         @unique
   avatar_url        String?
   auth_provider     String          @default("google")
   is_active         Boolean         @default(true)
@@ -139,6 +142,9 @@ model ManmecUser {
   wo_assignments_by       ManmecWorkOrderAssignment[]  @relation("AssignedByUser")
   timeline_entries        ManmecWorkOrderTimeline[]
   assigned_tools          ManmecTool[]
+  sent_transfers          ManmecInventoryTransfer[] @relation("SenderTransfers")
+  received_transfers      ManmecInventoryTransfer[] @relation("ReceiverTransfers")
+  telegram_tokens         ManmecTelegramToken[]
 
   @@map("manmec_users")
 }
@@ -228,6 +234,8 @@ model ManmecWarehouse {
   inventory_stock     ManmecInventoryStock[]
   inventory_movements ManmecInventoryMovement[]
   incoming_shipments  ManmecShipment[]
+  outgoing_transfers  ManmecInventoryTransfer[] @relation("FromWarehouseTransfers")
+  incoming_transfers  ManmecInventoryTransfer[] @relation("ToWarehouseTransfers")
 
   @@map("manmec_warehouses")
 }
@@ -255,6 +263,7 @@ model ManmecWorkOrder {
   source                   String           @default("manual")
   external_id              String?
   external_source          String?
+  metadata                 Json?            @default("{}")
   created_at               DateTime         @default(now()) @db.Timestamptz(6)
   updated_at               DateTime         @default(now()) @db.Timestamptz(6)
   deleted_at               DateTime?        @db.Timestamptz(6)
@@ -329,6 +338,7 @@ model ManmecTool {
   organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   user         ManmecUser?        @relation(fields: [assigned_user_id], references: [id])
   vehicle      ManmecVehicle?     @relation(fields: [assigned_vehicle_id], references: [id])
+  inventory_transfers ManmecInventoryTransfer[]
 
   @@map("manmec_tools")
 }
@@ -493,6 +503,7 @@ model ManmecInventoryItem {
   movements      ManmecInventoryMovement[]
   wo_materials   ManmecWorkOrderMaterial[]
   shipment_items ManmecShipmentItem[]
+  inventory_transfers ManmecInventoryTransfer[]
 
   @@index([organization_id])
   @@map("manmec_inventory_items")
@@ -581,6 +592,45 @@ model ManmecRouteStop {
   station    ManmecServiceStation @relation(fields: [station_id], references: [id])
 
   @@map("manmec_route_stops")
+}
+
+// -----------------------------------------------------------
+// Traspasos Express (Handshake entre furgones/bodegas)
+// -----------------------------------------------------------
+model ManmecInventoryTransfer {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id   String   @db.Uuid
+  
+  sender_id         String   @db.Uuid
+  from_warehouse_id String   @db.Uuid
+  
+  receiver_id       String   @db.Uuid
+  to_warehouse_id   String   @db.Uuid
+  
+  item_id           String?  @db.Uuid
+  quantity          Decimal?
+  
+  tool_id           String?  @db.Uuid
+  
+  status            String   @default("PENDING") // PENDING, COMPLETED, REJECTED, CANCELLED
+  notes             String?
+  
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+  resolved_at       DateTime? @db.Timestamptz(6)
+
+  organization   ManmecOrganization  @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  sender         ManmecUser          @relation("SenderTransfers", fields: [sender_id], references: [id])
+  receiver       ManmecUser          @relation("ReceiverTransfers", fields: [receiver_id], references: [id])
+  from_warehouse ManmecWarehouse     @relation("FromWarehouseTransfers", fields: [from_warehouse_id], references: [id])
+  to_warehouse   ManmecWarehouse     @relation("ToWarehouseTransfers", fields: [to_warehouse_id], references: [id])
+  item           ManmecInventoryItem? @relation(fields: [item_id], references: [id])
+  tool           ManmecTool?         @relation(fields: [tool_id], references: [id])
+
+  @@index([organization_id])
+  @@index([receiver_id, status])
+  @@index([sender_id, status])
+  @@map("manmec_inventory_transfers")
 }
 
 // -----------------------------------------------------------
@@ -710,4 +760,21 @@ model ManmecAuditLog {
 
   @@index([table_name, record_id, created_at])
   @@map("manmec_audit_log")
+}
+
+// -----------------------------------------------------------
+// Onboarding: Tokens temporales para validación de Telegram
+// -----------------------------------------------------------
+model ManmecTelegramToken {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  token           String   @unique
+  phone_number    String
+  user_id         String   @db.Uuid
+  expires_at      DateTime @db.Timestamptz(6)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  user            ManmecUser @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@map("manmec_telegram_tokens")
 }

@@ -18,6 +18,7 @@ import {
 import { Warehouse as WarehouseType, toggleWarehouseStatus } from "@/app/dashboard/warehouses/actions";
 import { WarehouseModal } from "./WarehouseModal";
 import { TransferModal } from "./TransferModal";
+import { WarehouseAuditModal } from "./WarehouseAuditModal";
 import Link from "next/link";
 
 interface Props {
@@ -34,6 +35,7 @@ export function WarehouseManagementClient({ initialWarehouses, items, availableV
     // Modales
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+    const [viewingWarehouse, setViewingWarehouse] = useState<WarehouseType | null>(null);
     const [editingWarehouse, setEditingWarehouse] = useState<WarehouseType | null>(null);
 
     const filteredWarehouses = useMemo(() => {
@@ -182,16 +184,16 @@ export function WarehouseManagementClient({ initialWarehouses, items, availableV
                             </div>
 
                             <div className="mt-6 flex flex-col gap-3">
-                                <Link
-                                    href={`/dashboard/inventory?warehouse=${warehouse.id}`}
-                                    className="flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-sm font-bold group/link"
+                                <button
+                                    onClick={() => setViewingWarehouse(warehouse)}
+                                    className="flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-sm font-bold group/link w-full"
                                 >
-                                    <div className="flex items-center gap-2 text-slate-300">
+                                    <div className="flex items-center gap-2 text-slate-300 group-hover/link:text-blue-400 transition-colors">
                                         <Package className="w-4 h-4" />
-                                        Ver Stock
+                                        Ver Stock Detallado
                                     </div>
                                     <ArrowRight className="w-4 h-4 text-blue-500 group-hover/link:translate-x-1 transition-transform" />
-                                </Link>
+                                </button>
 
                                 <span className={`inline-flex self-start items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${warehouse.is_active ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
                                     {warehouse.is_active ? 'Activa' : 'Inactiva'}
@@ -231,6 +233,12 @@ export function WarehouseManagementClient({ initialWarehouses, items, availableV
                     items={items}
                 />
             )}
+
+            <WarehouseAuditModal
+                isOpen={!!viewingWarehouse}
+                onClose={() => setViewingWarehouse(null)}
+                warehouse={viewingWarehouse}
+            />
         </div>
     );
 }

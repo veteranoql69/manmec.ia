@@ -91,13 +91,19 @@ Para llegar a este MVP sin romper lo que hay, estas son las etapas:
   * [ ] **Simulación End-to-End:** Ejecutar localmente `test_email_automation.ts` para verificar la correcta inserción de OTs y Pre-Guías (`manmec_shipments`) en Prisma.
   * [ ] **Conexión a Producción:** Configurar *SendGrid Inbound Parse* o *Postmark* en el dominio para enrutar los correos de `bodega@manmec.cl` hacia nuestro webhook.
 
-* [ ] **Fase 1: Conexión de Datos del Dashboard**
-  * [ ] Terminar el *Onboarding* y poblar datos falsos/reales para tener mecánicos y OTs.
+* [ ] **Fase 1: Onboarding y Conexión de Datos**
   * [ ] Crear el endpoint/action para la *Cronología de Actividad* leyendo de `manmec_audit_log` y renderizarlo en la UI.
-* [ ] **Fase 2: Setup del Bot de Telegram Base**
+  * [ ] **Pantalla de Onboarding "Zero-Friction":** Formulario obligatorio post-login de Google para recolectar el Rol y Teléfono del usuario.
+  * [ ] **Emparejamiento Seguro (QR Code & Deep Link):**
+    * *Modo Desktop (PC/Tablet):* Generar un código QR dinámico en pantalla para escanear con el celular.
+    * *Modo Mobile (Mismo dispositivo):* Mostrar un Botón Gigante (Ej: "Abrir Telegram") que use un *Deep Link* (`tg://resolve?domain=ManmecBot&start=token_unico`) para redirigir automáticamente a la app sin usar la cámara.
+  * [ ] **Validación de Identidad:** El Webhook verifica que el número de teléfono con el que el usuario escribe en Telegram coincida con el ingresado en la web. Si difieren, abortar el enrolamiento, mostrar error en Telegram y recargar el QR/Enlace en la web.
+* [ ] **Fase 2: Setup del Bot de Telegram Base & Arquitectura Omnicanal**
   * [ ] Crear el Bot en BotFather de Telegram y obtener el Token.
-  * [ ] Programar un Webhook en Next.js (`/api/telegram/webhook`) para recibir los mensajes.
-  * [ ] Implementar la función de emparejamiento (vincular cuenta de Telegram con `auth.users` de Supabase).
+  * [ ] **Cerebro Central IA (`src/lib/ai/agent.ts`):** Centralizar la lógica del LLM separada de los canales de comunicación, para que sea agnóstica a la plataforma.
+  * [ ] Programar un Webhook en Next.js (`/api/telegram/webhook`) para recibir los mensajes ruteándolos al Cerebro Central.
+  * [ ] **Canal Web:** Implementar Widget flotante de chat en la App (`localhost:3000`) conectado al mismo Cerebro Central.
+  * [ ] Implementar la función de emparejamiento (vincular cuenta de Telegram con `auth.users` de Supabase para RBAC consistente en todos los canales).
 * [ ] **Fase 3: Transcripción, Seguridad y Módulo de Herramientas**
   * [ ] Implementar el enrutamiento del audio nativo `.ogg` directamente a la API de Gemini 1.5.
   * [ ] Condicionar el Prompt inicial del Agente basado en el `manmec_users.role` del remitente.
@@ -113,3 +119,27 @@ Para llegar a este MVP sin romper lo que hay, estas son las etapas:
   * [ ] **Autenticación en Vivo:** Probar el registro del equipo usando dominios corporativos autorizados vía Google OAuth para verificar el candado de seguridad y autoasignación de roles ("Zero Trust").
   * [ ] **Agente IA en la Nube:** Registrar y probar el webhook de Telegram usando el dominio público de producción. Verificar que los audios e interacciones en terreno tengan latencia aceptable.
   * [ ] **Conexión WebSocket:** Confirmar con mecánicos en terreno usando la versión móvil que las notificaciones y cambios de estado (Realtime) llegan a sus teléfonos instantáneamente con redes 4G/LTE.
+
+* [ ] **Fase 6: Correcciones y Sugerencias de Arquitectura (Skills Globales)**
+  * [ ] **Seguridad & Backend (Zero Trust):** Crear el archivo `src/middleware.ts` para proteger las rutas privadas bajo `/dashboard` verificando la sesión con Supabase Auth.
+  * [ ] **Frontend & Diseño:** Actualizar los metadatos base en `src/app/layout.tsx` (title, description) por los definitivos de Manmec IA, para SEO y branding.
+  * [ ] **Frontend & Diseño:** Generar la pantalla de Login con Google Auth (`app/login/page.tsx`) aplicando principios Mobile-First (Ley de Fitts).
+
+---
+
+## 🚀 Posibles Funcionalidades Futuras (Post-MVP)
+
+*Esta sección contiene ideas aprobadas a nivel de arquitectura, pero que **NO son bloqueantes** para salir a producción con la Fase MVP.*
+
+### Integración de Telemetría (GPS-Trace) y Conciencia Espacial IA
+
+* **Objetivo:** Optimizar el despacho de OTs urgentes (P1) y obtener visibilidad real de la operación en terreno reduciendo la fricción a cero.
+* **Componentes Clave a Desarrollar:**
+  * [ ] **Modelo de Datos:** Implementar extensión PostGIS en Supabase.
+  * [ ] **Vínculo Físico:** Añadir `gps_trace_uuid` a la tabla `vehicles` y crear tabla temporal `vehicle_telemetry`.
+  * [ ] **Geocercas (Zonas Críticas):** Extender `work_orders` para incluir radio/polígono geográfico.
+  * [ ] **Webhooks Seguros:** Backend listener para eventos de GPS-Trace (Enter/Exit Geofence) protegido con firma criptográfica.
+  * [ ] **Automatización Zero-Friction:** Actualización automática del estado de la OT a "En Sitio" cuando el furgón entra a la zona del cliente.
+  * [ ] **Despacho Reactivo:** Motor P1 basado en posición real (Supabase Realtime) y no solo asignación estática zonal.
+  * [ ] **Agente IA Mejorado:** Inyectar la telemetría en el contexto del Master Agente para responder consultas espaciales en lenguaje natural (Ej: "¿Dónde está Lucho?").
+  * [ ] **UI Backoffice:** Live Map Dashboard integrando `react-map-gl`/`leaflet` con blips actualizados por WebSockets.

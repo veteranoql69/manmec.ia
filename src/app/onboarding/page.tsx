@@ -18,7 +18,7 @@ export default async function OnboardingPage() {
     // Si ya completó onboarding, ir al dashboard
     const { data: profile } = await supabase
         .from("manmec_users")
-        .select("onboarding_status, organization_id")
+        .select("onboarding_status, organization_id, manmec_organizations(name)")
         .eq("id", user.id)
         .single();
 
@@ -62,6 +62,9 @@ export default async function OnboardingPage() {
                     {/* Formulario */}
                     <OnboardingForm
                         prefilledDomain={hostedDomain}
+                        hasOrg={!!profile?.organization_id}
+                        orgName={Array.isArray(profile?.manmec_organizations) ? profile?.manmec_organizations[0]?.name : (profile?.manmec_organizations as any)?.name || null}
+                        userId={user.id}
                     />
                 </div>
             </div>

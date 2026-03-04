@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 export interface ShipmentItemInput {
     description: string;
     quantity: number;
+    received_qty?: number;
     barcode?: string;
     unit_price?: number;
 }
@@ -154,7 +155,7 @@ export async function saveShipment(data: {
             return {
                 item_id: itemId,
                 expected_qty: item.quantity,
-                received_qty: item.quantity,
+                received_qty: item.received_qty || item.quantity,
                 unit_price: item.unit_price || 0,
             };
         }));
@@ -273,6 +274,33 @@ export async function getShipmentById(id: string) {
     if (error) {
         console.error("Error fetching shipment detail:", error);
         return null;
+    }
+
+    return data;
+}
+/**
+ * Obtiene guías en estado PRE_ADVISED para vincularlas en el counter
+ */
+export async function getPreAdvisedShipments() {
+    const profile = await requireRole("SUPERVISOR");
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+        .from("manmec_shipments")
+        .select(`
+            *,
+            items:manmec_shipment_items(
+                *,
+                product:item_id(*)
+            )
+        `)
+        .eq("organization_id", profile.organization_id)
+        .eq("status", "PRE_ADVISED")
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        console.error("Error fetching pre-advised shipments:", error);
+        return [];
     }
 
     return data;

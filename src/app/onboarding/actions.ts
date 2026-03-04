@@ -50,7 +50,9 @@ const OnboardingSchema = z.object({
     org_name: z
         .string()
         .min(2, "El nombre debe tener al menos 2 caracteres")
-        .max(100),
+        .max(100)
+        .optional()
+        .or(z.literal("")),
     org_rut: z
         .string()
         .optional()
@@ -68,14 +70,25 @@ const OnboardingSchema = z.object({
         .string()
         .optional()
         .transform((val) => val?.trim().toLowerCase().replace(/^@/, "") || undefined),
+    phone: z
+        .string()
+        .min(8, "El teléfono es requerido"),
+    role: z
+        .enum(["MANAGER", "SUPERVISOR", "MECHANIC"], {
+            message: "Selecciona un rol válido"
+        }),
+    hasOrg: z.string().optional(),
 });
 
 export type OnboardingState = {
     error?: string;
+    telegramToken?: string;
     fieldErrors?: {
         org_name?: string[];
         org_rut?: string[];
         org_domain?: string[];
+        phone?: string[];
+        role?: string[];
     };
 };
 
@@ -95,9 +108,12 @@ export async function completeOnboarding(
     console.log("[completeOnboarding] user:", user.id, user.email);
 
     const parsed = OnboardingSchema.safeParse({
-        org_name: formData.get("org_name"),
+        org_name: formData.get("org_name") || undefined,
         org_rut: formData.get("org_rut") || undefined,
         org_domain: formData.get("org_domain") || undefined,
+        phone: formData.get("phone"),
+        role: formData.get("role"),
+        hasOrg: formData.get("hasOrg"),
     });
 
     if (!parsed.success) {
@@ -105,67 +121,93 @@ export async function completeOnboarding(
         return { fieldErrors: parsed.error.flatten().fieldErrors };
     }
 
-    const { org_name, org_rut, org_domain } = parsed.data;
-    console.log("[completeOnboarding] data:", { org_name, org_rut, org_domain });
+    const { org_name, org_rut, org_domain, phone, role, hasOrg } = parsed.data;
+    const isNewOrg = hasOrg !== "true";
 
-    // Cliente admin para bypassar RLS en operaciones de bootstrap
+    // Cliente admin para bypassar RLS
     const admin = createAdminClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
 
-    // Verificar si el usuario ya tiene perfil en manmec_users
+    // 1. Crear / Asegurar Perfil
     const { data: existingProfile } = await admin
         .from("manmec_users")
         .select("id, onboarding_status")
         .eq("id", user.id)
         .maybeSingle();
 
-    // Si el trigger de auth no creó el perfil, lo creamos manualmente
     if (!existingProfile) {
+        // En lugar de insert (ya que Auth ya maneja el ID via triggers, o debiese), 
+        // a veces NextAuth o Supabase Auth no disparan el trigger correctamente en entornos de dev.
+        // Hacemos un UPSERT por si acaso para no soltar un error 500 silencioso.
         const meta = user.user_metadata as Record<string, unknown>;
         const fullName = (meta?.full_name as string) || (meta?.name as string) || user.email || "";
 
-        const { error: insertError } = await admin.from("manmec_users").insert({
+        const { error: upsertError } = await admin.from("manmec_users").upsert({
             id: user.id,
             full_name: fullName,
+            email: user.email,
             avatar_url: (meta?.avatar_url as string) || null,
             auth_provider: "google",
             onboarding_status: "pending",
         });
-
-        if (insertError) {
-            console.error("[completeOnboarding] insert profile error:", insertError.message);
-            return { error: "No pudimos crear tu perfil. Contacta a soporte." };
+        if (upsertError) {
+            console.error("[completeOnboarding] Error Upsert profile:", upsertError);
+            return { error: `Error al crear tu perfil: ${upsertError.message}` };
         }
     }
 
-    // Llamar a la función PostgreSQL atómica
-    const { data, error } = await admin.rpc("manmec_fn_complete_onboarding", {
-        p_user_id: user.id,
-        p_org_name: org_name,
-        p_org_rut: org_rut ?? null,
-        p_org_domain: org_domain ?? null,
+    // 2. Si es Organización nueva, crearla e inscribir al Manager
+    if (isNewOrg) {
+        // En Postgres: role es lowercase ("manager", "mechanic"), Prisma maps it to uppercase Enum
+        const { data: orgData, error: orgError } = await admin.rpc("manmec_fn_complete_onboarding", {
+            p_user_id: user.id,
+            p_org_name: org_name,
+            p_org_rut: org_rut ?? null,
+            p_org_domain: org_domain ?? null,
+        });
+
+        if (orgError) {
+            if (orgError.message?.includes("organizations_rut_key") || orgError.code === "23505") {
+                return { fieldErrors: { org_rut: ["Ya existe una organización con ese RUT."] } };
+            }
+            return { error: `Error al crear la organización: ${orgError.message}` };
+        }
+    }
+
+    // 3. Actualizar Teléfono, Rol del usuario 
+    // Wait, the RPC manmec_fn_complete_onboarding sets the user to MANAGER + onboarding_status = complete
+    // We should explicitly override the phone, role correctly.
+    // Notice: Prisma user roles enum: COMPANY_ADMIN, MANAGER, SUPERVISOR, MECHANIC
+    const { error: updateError } = await admin.from("manmec_users").update({
+        phone: phone,
+        role: role,
+        onboarding_status: "pending" // Let's keep it pending until Telegram is linked or simply override it
+    }).eq("id", user.id);
+
+    if (updateError) {
+        console.error("[completeOnboarding] Error Update user:", updateError);
+        return { error: `Error al actualizar datos del usuario: ${updateError.message}` };
+    }
+
+    // 4. Generar Token Temporal para Telegram
+    const newToken = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+    // Expires in 15 minutes
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    const { error: tokenError } = await admin.from("manmec_telegram_tokens").insert({
+        token: newToken,
+        phone_number: phone,
+        user_id: user.id,
+        expires_at: expiresAt
     });
 
-    console.log("[completeOnboarding] rpc:", { data, error: error?.message, code: error?.code });
-
-    if (error) {
-        // Error de RUT duplicado → mensaje amigable
-        if (error.message?.includes("organizations_rut_key") || error.code === "23505") {
-            return {
-                fieldErrors: {
-                    org_rut: ["Ya existe una organización con ese RUT. Si tu empresa ya está registrada, contacta a tu administrador."],
-                },
-            };
-        }
-        return { error: `Error al crear la organización: ${error.message}` };
+    if (tokenError) {
+        console.error("Error creating telegram token:", tokenError);
+        return { error: "No pudimos generar el token seguro para Telegram. Intenta de nuevo." };
     }
 
-    if (!data) {
-        return { error: "No se pudo crear la organización. Intenta nuevamente." };
-    }
-
-    console.log("[completeOnboarding] ✅ success, org:", data);
-    redirect("/dashboard");
+    // Retorna el token al cliente (Paso 2) sin redirigir aún.
+    return { telegramToken: newToken };
 }

@@ -129,7 +129,7 @@ export default async function ShipmentDetailPage({ params }: { params: { id: str
                                     </td>
                                     <td className="px-8 py-6 text-right">
                                         <p className="text-sm font-bold text-slate-400">
-                                            {item.unit_price > 0 ? `$${item.unit_price.toLocaleString()}` : "---"}
+                                            {item.unit_price > 0 ? `$${item.unit_price.toLocaleString('es-CL')}` : "---"}
                                         </p>
                                     </td>
                                 </tr>

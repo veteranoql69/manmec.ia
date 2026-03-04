@@ -1,15 +1,23 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Upload, CheckCircle2, AlertCircle, Loader2, Save, X, Plus, Package, FileText, Scan, Sparkles, Truck, ChevronRight } from "lucide-react";
-import { processShipmentImage, saveShipment } from "@/app/dashboard/shipments/actions";
+import { Camera, Upload, CheckCircle2, AlertCircle, Loader2, Save, X, Plus, Package, FileText, Scan, Sparkles, Truck, ChevronRight, Info, AlertTriangle } from "lucide-react";
+import { processShipmentImage, saveShipment, getPreAdvisedShipments } from "@/app/dashboard/shipments/actions";
 import { useRouter } from "next/navigation";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+function cn(...inputs: ClassValue[]) {
+    return twMerge(clsx(inputs));
+}
 
 interface EnrichedItem {
     code: string;
     description: string;
-    quantity: number;
+    quantity: number; // Cantidad en Guía (IA)
+    emailQuantity?: number; // Cantidad anunciada por Email
+    receivedQuantity: number; // Cantidad recibida físicamente
     unit: string;
     exists: boolean;
     existingId: string | null;
@@ -31,12 +39,14 @@ export function ShipmentReceptionClient({
 }) {
     const router = useRouter();
     const [image, setImage] = useState<string | null>(null);
-    const [fileName, setFileName] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(
         warehouses.find(w => w.is_active)?.id || ""
     );
+    const [preAdvisedShipments, setPreAdvisedShipments] = useState<any[]>([]);
+    const [selectedPreAdvisedId, setSelectedPreAdvisedId] = useState<string | null>(null);
+
     const [extractedData, setExtractedData] = useState<{
         dispatch_note_number: string;
         order_number: string;
@@ -44,17 +54,22 @@ export function ShipmentReceptionClient({
         is_duplicate?: boolean;
         items: EnrichedItem[];
     } | null>(null);
-    const [saveError, setSaveError] = useState<string | null>(null);
 
+    const [saveError, setSaveError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Cargar pre-avisos al iniciar
+    useEffect(() => {
+        getPreAdvisedShipments().then(setPreAdvisedShipments);
+    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            setFileName(file.name);
             const reader = new FileReader();
             reader.onloadend = () => {
                 setImage(reader.result as string);
+                setExtractedData(null); // Reset al cambiar imagen
             };
             reader.readAsDataURL(file);
         }
@@ -66,12 +81,35 @@ export function ShipmentReceptionClient({
         setSaveError(null);
         try {
             const result = await processShipmentImage(image);
-            setExtractedData(result);
+
+            // Vincular con pre-aviso si existe el mismo Nº de guía
+            const matchingPreAdvised = preAdvisedShipments.find(s => s.dispatch_note_number === result.dispatch_note_number);
+
+            const enrichedItems: EnrichedItem[] = result.items.map(item => {
+                const preItem = matchingPreAdvised?.items.find((pi: any) =>
+                    pi.product?.sku === item.code || pi.notes?.includes(item.description)
+                );
+                return {
+                    ...item,
+                    quantity: item.quantity,
+                    emailQuantity: preItem ? Number(preItem.expected_qty) : undefined,
+                    receivedQuantity: item.quantity, // Por defecto asumimos que llegó lo de la guía
+                };
+            });
+
+            setExtractedData({
+                ...result,
+                items: enrichedItems
+            });
+
+            if (matchingPreAdvised) {
+                setSelectedPreAdvisedId(matchingPreAdvised.id);
+            }
+
             if (result.is_duplicate) {
                 setSaveError(`⚠️ La Guía de Despacho Nº ${result.dispatch_note_number} ya fue ingresada previamente.`);
             }
         } catch (error: any) {
-            console.error("Error en análisis IA:", error);
             setSaveError("Error al procesar: " + (error.message || "Error desconocido"));
         } finally {
             setProcessing(false);
@@ -85,12 +123,25 @@ export function ShipmentReceptionClient({
         setExtractedData({ ...extractedData, items: newItems });
     };
 
+    const getStatusColor = (item: EnrichedItem) => {
+        const { quantity, emailQuantity, receivedQuantity } = item;
+
+        // Rojo: Físico < Guía o Físico < Email
+        if (receivedQuantity < quantity || (emailQuantity !== undefined && receivedQuantity < emailQuantity)) {
+            return "text-red-500 border-red-500/30 bg-red-500/5";
+        }
+
+        // Amarillo: Guía != Email (pero recibimos lo que dice la guía)
+        if (emailQuantity !== undefined && quantity !== emailQuantity && receivedQuantity === quantity) {
+            return "text-yellow-500 border-yellow-500/30 bg-yellow-500/5";
+        }
+
+        // Verde: Todo coincide
+        return "text-emerald-500 border-emerald-500/30 bg-emerald-500/5";
+    };
+
     const handleSave = async () => {
         if (!extractedData) return;
-        if (extractedData.is_duplicate) {
-            setSaveError("⚠️ Debes corregir el número de guía antes de continuar.");
-            return;
-        }
         setLoading(true);
         setSaveError(null);
         try {
@@ -102,11 +153,13 @@ export function ShipmentReceptionClient({
                 order_number: extractedData.order_number,
                 items: extractedData.items.map(item => ({
                     description: item.description,
-                    quantity: Number(item.quantity),
+                    quantity: Number(item.quantity), // Cantidad Guía
+                    received_qty: Number(item.receivedQuantity), // Cantidad Real
                     code: String(item.code),
                     exists: item.exists
                 }))
             });
+
             if (result.success) {
                 router.push("/dashboard/shipments");
                 router.refresh();
@@ -114,7 +167,6 @@ export function ShipmentReceptionClient({
                 setSaveError(result.error || "Error al intentar guardar la recepción.");
             }
         } catch (error: any) {
-            console.error("Error al guardar recepción:", error);
             setSaveError("Error al guardar en BD: " + (error.message || "Error desconocido"));
         } finally {
             setLoading(false);
@@ -122,81 +174,63 @@ export function ShipmentReceptionClient({
     };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                    <h2 className="text-3xl font-black uppercase tracking-tight flex items-center gap-3">
-                        Recepción <span className="text-blue-500">Inteligente</span>
-                    </h2>
-                    <p className="text-slate-400 font-medium text-sm mt-1">Sube la guía y corrige cualquier dato detectado antes de guardar.</p>
+        <div className="max-w-5xl mx-auto space-y-8 pb-20">
+            {/* Header con Estado de Pre-Avisos */}
+            <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-6">
+                    <div className="w-16 h-16 rounded-3xl bg-blue-600/20 flex items-center justify-center text-blue-400">
+                        <Truck className="w-8 h-8" />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black uppercase tracking-tight">
+                            Gestión de <span className="text-blue-500">Carga</span>
+                        </h2>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <p className="text-slate-400 font-medium text-xs">{preAdvisedShipments.length} Guías pre-anunciadas por Email</p>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row items-end md:items-center gap-4">
+                <div className="flex gap-4">
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest ml-1 flex items-center gap-1.5">
-                            <Truck className="w-3 h-3" /> Destino de Carga
-                        </label>
-                        <div className="relative group">
-                            <select
-                                value={selectedWarehouseId}
-                                onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                                className="appearance-none bg-white/5 border border-white/10 rounded-2xl px-6 py-3 pr-12 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all cursor-pointer min-w-[200px]"
-                            >
-                                {warehouses.map(w => (
-                                    <option key={w.id} value={w.id} className="bg-[#0f0f0f] text-white">
-                                        {w.name} {w.is_active ? '' : '(Inactiva)'}
-                                    </option>
-                                ))}
-                            </select>
-                            <ChevronRight className="w-4 h-4 text-slate-500 absolute right-4 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none group-hover:text-blue-500 transition-colors" />
-                        </div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest ml-1">Bodega Destino</label>
+                        <select
+                            value={selectedWarehouseId}
+                            onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                            className="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all cursor-pointer min-w-[200px]"
+                        >
+                            {warehouses.map(w => (
+                                <option key={w.id} value={w.id} className="bg-[#0f0f0f]">{w.name}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {!extractedData && (
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm transition-all shadow-xl shadow-blue-900/20 active:scale-[0.98] h-[50px]"
-                        >
-                            <Camera className="w-4 h-4" /> CAPTURAR GUÍA
-                        </button>
+                        <div className="flex flex-col gap-1.5 justify-end">
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex items-center gap-3 px-8 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm transition-all shadow-xl shadow-blue-900/40 active:scale-[0.98]"
+                            >
+                                <Camera className="w-5 h-5" /> ESCANEAR GUÍA FÍSICA
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
 
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-            />
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
 
             {!extractedData ? (
-                <AnimatePresence>
+                <div className="space-y-6">
                     {image ? (
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="relative group rounded-[2.5rem] overflow-hidden border border-white/10 bg-white/5 p-4"
-                        >
-                            <div className="aspect-[3/4] md:aspect-video relative rounded-3xl overflow-hidden bg-black">
+                        <div className="relative group rounded-[2.5rem] overflow-hidden border border-white/10 bg-white/5 p-4">
+                            <div className="aspect-video relative rounded-3xl overflow-hidden bg-black max-h-[400px]">
                                 <img src={image} className="w-full h-full object-contain" alt="Guía" />
                                 {processing && (
                                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-6">
-                                        <div className="relative">
-                                            <Loader2 className="w-16 h-16 text-blue-500 animate-spin" />
-                                            <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full" />
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-xl font-black uppercase tracking-widest text-white animate-pulse">Analizando con Visión IA...</p>
-                                        </div>
-                                        <motion.div
-                                            initial={{ top: 0 }}
-                                            animate={{ top: "100%" }}
-                                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                            className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent shadow-[0_0_15px_rgba(59,130,246,0.8)] z-10"
-                                        />
+                                        <Loader2 className="w-16 h-16 text-blue-500 animate-spin" />
+                                        <p className="text-xl font-black uppercase tracking-widest animate-pulse">Analizando con Visión IA...</p>
                                     </div>
                                 )}
                             </div>
@@ -206,7 +240,7 @@ export function ShipmentReceptionClient({
                                         onClick={handleAnalyze}
                                         className="flex-1 bg-white text-black font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-200 transition-all uppercase tracking-tighter"
                                     >
-                                        <Sparkles className="w-5 h-5" /> Enviar a Análisis Gemini
+                                        <Sparkles className="w-5 h-5" /> Iniciar Triple Validación
                                     </button>
                                     <button
                                         onClick={() => setImage(null)}
@@ -216,146 +250,142 @@ export function ShipmentReceptionClient({
                                     </button>
                                 </div>
                             )}
-                        </motion.div>
+                        </div>
                     ) : (
-                        <motion.div
-                            onClick={() => fileInputRef.current?.click()}
-                            className="border-2 border-dashed border-white/10 rounded-[2.5rem] p-12 flex flex-col items-center justify-center gap-4 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all cursor-pointer group"
-                        >
-                            <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center text-slate-500 group-hover:text-blue-500 group-hover:bg-blue-500/10 transition-all">
-                                <Upload className="w-8 h-8" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div
+                                onClick={() => fileInputRef.current?.click()}
+                                className="border-2 border-dashed border-white/10 rounded-[2.5rem] p-12 flex flex-col items-center justify-center gap-4 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all cursor-pointer group"
+                            >
+                                <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center text-slate-500 group-hover:text-blue-500 group-hover:bg-blue-500/10 transition-all">
+                                    <Camera className="w-8 h-8" />
+                                </div>
+                                <div className="text-center">
+                                    <p className="font-bold text-lg">Tomar Foto a Guía</p>
+                                    <p className="text-sm text-slate-400">Escanea la realidad física</p>
+                                </div>
                             </div>
-                            <div className="text-center">
-                                <p className="font-bold text-lg">Inicia la Recepción</p>
-                                <p className="text-sm text-slate-500">Haz clic para subir o tomar foto de la Guía de Despacho</p>
+
+                            <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8">
+                                <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
+                                    <Info className="w-4 h-4 text-emerald-500" /> Guías Pre-Avisadas (Email)
+                                </h3>
+                                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {preAdvisedShipments.length === 0 ? (
+                                        <p className="text-sm text-slate-600 italic">No hay pre-avisos pendientes...</p>
+                                    ) : (
+                                        preAdvisedShipments.map(s => (
+                                            <div key={s.id} className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-blue-500/30 transition-all group">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className="text-sm font-black text-white">Guía #{s.dispatch_note_number}</p>
+                                                        <p className="text-[10px] text-slate-500 uppercase font-bold">{s.supplier_name}</p>
+                                                    </div>
+                                                    <span className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[8px] font-black uppercase tracking-widest">Anunciada</span>
+                                                </div>
+                                                <div className="mt-3 flex items-center justify-between">
+                                                    <p className="text-[10px] text-slate-400 font-medium">{s.items.length} ítems reportados</p>
+                                                    <button className="text-[10px] font-black text-blue-500 hover:text-white transition-colors flex items-center gap-1 uppercase">
+                                                        Vincular a carga <ChevronRight className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
                             </div>
-                        </motion.div>
+                        </div>
                     )}
-                </AnimatePresence>
+                </div>
             ) : (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="space-y-6"
-                >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className={`border p-6 rounded-3xl flex items-center gap-4 group transition-all ${extractedData.is_duplicate ? 'border-red-500/50 bg-red-500/5' : 'bg-white/5 border-white/10 focus-within:border-blue-500/50'}`}>
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${extractedData.is_duplicate ? 'bg-red-600/20 text-red-400 font-bold' : 'bg-blue-600/20 text-blue-400'}`}>
-                                {extractedData.is_duplicate ? <AlertCircle className="w-6 h-6 animate-pulse" /> : <FileText className="w-6 h-6" />}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                    {/* Panel de Control de Discrepancias */}
+                    <div className="bg-[#0f0f0f] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                        <div className="p-8 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div>
+                                <div className="flex items-center gap-3">
+                                    <div className="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 font-black text-xs uppercase tracking-widest">Dashboard de Validación</div>
+                                    {selectedPreAdvisedId && (
+                                        <div className="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 font-black text-xs uppercase tracking-widest flex items-center gap-2">
+                                            <CheckCircle2 className="w-3 h-3" /> Vinculado a Email
+                                        </div>
+                                    )}
+                                </div>
+                                <h3 className="text-3xl font-black mt-2">Comparativa de <span className="text-blue-500">Insumos</span></h3>
                             </div>
-                            <div className="flex-1">
-                                <p className={`text-[10px] uppercase font-bold tracking-widest ${extractedData.is_duplicate ? 'text-red-400' : 'text-slate-500'}`}>
-                                    {extractedData.is_duplicate ? "Nº de Guía (DUPLICADO)" : "Nº de Guía"}
-                                </p>
-                                <input
-                                    className={`bg-transparent text-xl font-black w-full outline-none ${extractedData.is_duplicate ? 'text-red-400' : 'text-white'}`}
-                                    value={extractedData.dispatch_note_number}
-                                    onChange={(e) => {
-                                        setExtractedData({ ...extractedData, dispatch_note_number: e.target.value, is_duplicate: false });
-                                        setSaveError(null);
-                                    }}
-                                />
-                            </div>
-                        </div>
-                        <div className="bg-white/5 border border-white/10 p-6 rounded-3xl flex items-center gap-4 group focus-within:border-emerald-500/50 transition-all">
-                            <div className="w-12 h-12 rounded-2xl bg-emerald-600/20 flex items-center justify-center text-emerald-400">
-                                <Package className="w-6 h-6" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Proveedor</p>
-                                <input
-                                    className="bg-transparent text-xl font-black w-full outline-none text-white"
-                                    value={extractedData.supplier_name}
-                                    onChange={(e) => setExtractedData({ ...extractedData, supplier_name: e.target.value })}
-                                />
+
+                            <div className="flex gap-4">
+                                <div className="text-center p-4 bg-white/5 rounded-2xl border border-white/5 min-w-[100px]">
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Items OK</p>
+                                    <p className="text-2xl font-black text-emerald-500">{extractedData.items.filter(i => getStatusColor(i).includes('emerald')).length}</p>
+                                </div>
+                                <div className="text-center p-4 bg-white/5 rounded-2xl border border-white/5 min-w-[100px]">
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Discrepancias</p>
+                                    <p className="text-2xl font-black text-red-500">{extractedData.items.filter(i => getStatusColor(i).includes('red') || getStatusColor(i).includes('yellow')).length}</p>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Nueva sección para el Pedido */}
-                        <div className="bg-white/5 border border-white/10 p-6 rounded-3xl flex items-center gap-4 group focus-within:border-blue-500/50 transition-all md:col-span-2">
-                            <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-slate-400">
-                                <Truck className="w-6 h-6" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Nº de Pedido / SAP</p>
-                                <input
-                                    className="bg-transparent text-xl font-black w-full outline-none text-white"
-                                    value={extractedData.order_number}
-                                    placeholder="No detectado"
-                                    onChange={(e) => setExtractedData({ ...extractedData, order_number: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-[#0f0f0f] border border-white/10 rounded-[2.5rem] overflow-hidden">
-                        <div className="p-6 border-b border-white/10 flex items-center justify-between">
-                            <h3 className="font-bold uppercase tracking-widest text-xs flex items-center gap-2 text-slate-400">
-                                <Scan className="w-4 h-4 text-blue-500" /> Detalle de Insumos (Edita si hay errores)
-                            </h3>
-                            <div className="flex gap-2">
-                                <span className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[10px] font-bold tracking-tighter">EXISTENTE</span>
-                                <span className="px-2 py-1 rounded-md bg-blue-500/10 text-blue-500 text-[10px] font-bold tracking-tighter">A CREAR</span>
-                            </div>
-                        </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-white/5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
                                     <tr>
-                                        <th className="px-6 py-4">Status</th>
-                                        <th className="px-6 py-4 min-w-[140px]">Código / SKU</th>
-                                        <th className="px-6 py-4 min-w-[300px]">Descripción / Insumo</th>
-                                        <th className="px-6 py-4">Cant.</th>
-                                        <th className="px-6 py-4">Unidad</th>
+                                        <th className="px-8 py-6">Estado</th>
+                                        <th className="px-8 py-6">Insumo / Descripción</th>
+                                        <th className="px-8 py-6 text-center">Anunciado (Email)</th>
+                                        <th className="px-8 py-6 text-center">En Guía (IA)</th>
+                                        <th className="px-8 py-6 text-center">Recibido Físico</th>
+                                        <th className="px-8 py-6 text-right">Mapeo</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {extractedData.items.map((item, i) => (
                                         <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                {item.exists ? (
-                                                    <div className="flex items-center gap-2 text-emerald-500">
-                                                        <CheckCircle2 className="w-4 h-4" />
-                                                        <span className="text-[9px] font-bold">VINCULADO</span>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex items-center gap-2 text-blue-400">
-                                                        <Plus className="w-4 h-4" />
-                                                        <span className="text-[9px] font-bold">NUEVO</span>
-                                                    </div>
-                                                )}
+                                            <td className="px-8 py-6 whitespace-nowrap">
+                                                <div className={cn("inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-tighter", getStatusColor(item))}>
+                                                    {getStatusColor(item).includes('emerald') ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                                    {getStatusColor(item).includes('emerald') ? 'Correcto' : getStatusColor(item).includes('red') ? 'Pérdida/Error' : 'Diferencia Admin'}
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <input
-                                                    className="bg-white/5 border border-white/5 rounded-lg px-3 py-1.5 w-full text-sm font-mono text-slate-300 focus:border-blue-500/50 outline-none"
-                                                    value={item.code}
-                                                    onChange={(e) => handleItemChange(i, 'code', e.target.value)}
-                                                />
+                                            <td className="px-8 py-6">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-black text-white uppercase">{item.description}</span>
+                                                    <span className="text-[10px] font-mono text-slate-500 mt-1">SKU: {item.code}</span>
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <input
-                                                    className="bg-white/5 border border-white/5 rounded-lg px-3 py-1.5 w-full text-sm font-bold uppercase text-white focus:border-blue-500/50 outline-none"
-                                                    value={item.description}
-                                                    onChange={(e) => handleItemChange(i, 'description', e.target.value)}
-                                                />
-                                                {item.exists && (
-                                                    <p className="text-[9px] text-emerald-500 mt-1 uppercase opacity-60">ID en Sistema: {item.systemName}</p>
-                                                )}
+                                            <td className="px-8 py-6 text-center">
+                                                <span className="text-lg font-mono text-slate-400">{item.emailQuantity ?? '--'}</span>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-8 py-6 text-center">
                                                 <input
                                                     type="number"
-                                                    className="bg-white/5 border border-white/5 rounded-lg px-3 py-1.5 w-20 text-sm font-black text-center text-white focus:border-blue-500/50 outline-none"
                                                     value={item.quantity}
-                                                    onChange={(e) => handleItemChange(i, 'quantity', e.target.value)}
+                                                    onChange={(e) => handleItemChange(i, 'quantity', Number(e.target.value))}
+                                                    className="w-16 bg-white/5 border border-white/10 rounded-lg py-1.5 text-center text-sm font-bold focus:border-blue-500 outline-none"
                                                 />
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <input
-                                                    className="bg-transparent w-12 text-slate-500 text-[10px] uppercase font-bold outline-none"
-                                                    value={item.unit}
-                                                    onChange={(e) => handleItemChange(i, 'unit', e.target.value)}
-                                                />
+                                            <td className="px-8 py-6 text-center">
+                                                <div className="relative inline-block">
+                                                    <input
+                                                        type="number"
+                                                        value={item.receivedQuantity}
+                                                        onChange={(e) => handleItemChange(i, 'receivedQuantity', Number(e.target.value))}
+                                                        className={cn(
+                                                            "w-20 bg-white/10 border-2 rounded-xl py-3 text-center text-xl font-black outline-none transition-all",
+                                                            getStatusColor(item).includes('red') ? "border-red-500 text-red-500 focus:ring-red-500/50" : "border-emerald-500/30 focus:border-blue-500"
+                                                        )}
+                                                    />
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6 text-right">
+                                                {item.exists ? (
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-[10px] font-black text-emerald-500 uppercase">En Catálogo</span>
+                                                        <span className="text-[9px] text-slate-500 uppercase max-w-[120px] truncate">{item.systemName}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[10px] font-black text-blue-500 uppercase">Crear como Nuevo</span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}
@@ -365,30 +395,26 @@ export function ShipmentReceptionClient({
                     </div>
 
                     {saveError && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3 text-red-400"
-                        >
-                            <AlertCircle className="w-5 h-5 shrink-0" />
-                            <p className="text-sm font-bold leading-tight">{saveError}</p>
-                        </motion.div>
+                        <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-3xl flex items-center gap-4 text-red-400 shadow-lg">
+                            <AlertCircle className="w-6 h-6 shrink-0" />
+                            <p className="font-bold">{saveError}</p>
+                        </div>
                     )}
 
-                    <div className="flex flex-col md:flex-row gap-4 pt-4">
+                    <div className="flex flex-col md:flex-row gap-4 pt-6">
                         <button
-                            disabled={loading || extractedData.is_duplicate}
+                            disabled={loading}
                             onClick={handleSave}
-                            className={`flex-1 text-white font-black py-6 rounded-3xl flex items-center justify-center gap-3 shadow-xl transition-all uppercase tracking-tight text-lg ${extractedData.is_duplicate ? 'bg-slate-700 opacity-50 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/40 active:scale-[0.98]'}`}
+                            className="flex-[2] bg-blue-600 hover:bg-blue-500 text-white font-black py-6 rounded-[2rem] flex items-center justify-center gap-4 shadow-2xl shadow-blue-900/40 transition-all uppercase tracking-tight text-xl active:scale-[0.98] disabled:opacity-50"
                         >
-                            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
-                            Confirmar Ingesta e Incrementar Stock
+                            {loading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Save className="w-8 h-8" />}
+                            Confirmar Ingesta y Notificar Discrepancias
                         </button>
                         <button
-                            onClick={() => { setExtractedData(null); setSaveError(null); }}
-                            className="bg-white/5 border border-white/10 hover:bg-white/10 px-8 py-6 rounded-3xl font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-tighter text-sm text-slate-400"
+                            onClick={() => { setExtractedData(null); setImage(null); }}
+                            className="flex-1 bg-white/5 border border-white/10 hover:bg-white/10 py-6 rounded-[2rem] font-bold text-slate-400 transition-all uppercase tracking-widest text-sm"
                         >
-                            <X className="w-4 h-4" /> Descartar y Re-Escanear
+                            Descartar
                         </button>
                     </div>
                 </motion.div>

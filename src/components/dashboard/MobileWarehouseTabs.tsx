@@ -36,11 +36,11 @@ export function MobileWarehouseTabs({ ot }: MobileWarehouseTabsProps) {
 
     // Mapeando datos vivos del backend
     const liveStock = ot.mobile_warehouse?.stock?.map((s: any) => ({
-        name: s.item.name,
-        sku: s.item.sku,
+        name: s.item?.name || "Sin Nombre",
+        sku: s.item?.sku || "N/A",
         qty: s.quantity,
-        unit: s.item.unit,
-        isSensitive: s.item.is_sensitive
+        unit: s.item?.unit || "und",
+        isSensitive: !!s.item?.is_sensitive
     })) || [];
 
     const liveTools = ot.mobile_warehouse?.tools?.map((t: any) => ({
