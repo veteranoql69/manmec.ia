@@ -15,7 +15,8 @@ import {
     ArrowUpRight,
     Search,
     Plus,
-    ExternalLink
+    ExternalLink,
+    CheckCircle2
 } from "lucide-react";
 import Link from "next/link";
 import type { ManmecUserProfile } from "@/lib/auth";
@@ -30,6 +31,13 @@ interface OpsItem {
     updatedAt: string;
 }
 
+interface CriticalItem {
+    id: string;
+    name: string;
+    currentStock: number;
+    minStock: number;
+}
+
 interface Props {
     profile: ManmecUserProfile;
     stats: {
@@ -39,12 +47,14 @@ interface Props {
     };
     currentOps: OpsItem[];
     chronology: any[];
+    criticalInventory: CriticalItem[];
 }
 
-export function SupervisorDashboardClient({ profile, stats: realStats, currentOps, chronology }: Props) {
+export function SupervisorDashboardClient({ profile, stats: realStats, currentOps, chronology, criticalInventory }: Props) {
     const [search, setSearch] = useState("");
     const [sortKey, setSortKey] = useState<keyof OpsItem>("ot");
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+    const [visibleOps, setVisibleOps] = useState(8);
 
     const kpis = [
         { label: "OTs Activas", value: realStats.activeOts.toString(), icon: Activity, color: "text-blue-400", bg: "bg-blue-400/10" },
@@ -147,7 +157,7 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
-                                    {filteredAndSortedOps.map((op, i) => (
+                                    {filteredAndSortedOps.slice(0, visibleOps).map((op, i) => (
                                         <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
@@ -192,6 +202,17 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                 </tbody>
                             </table>
                         </div>
+
+                        {filteredAndSortedOps.length > visibleOps && (
+                            <div className="p-4 border-t border-white/5 text-center">
+                                <button
+                                    onClick={() => setVisibleOps(prev => prev + 8)}
+                                    className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-400 transition-colors"
+                                >
+                                    Ver más operaciones
+                                </button>
+                            </div>
+                        )}
                     </section>
 
                     {/* Shipments / Camiones */}
@@ -220,18 +241,26 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                 Inventario Crítico
                             </h3>
                             <div className="space-y-4">
-                                {realStats.criticalStock > 0 ? (
-                                    [1, 2].map((_, i) => (
-                                        <div key={i} className="flex justify-between items-center text-sm p-3 bg-white/[0.02] border border-white/5 rounded-2xl">
+                                {criticalInventory.length > 0 ? (
+                                    criticalInventory.map((item, i) => (
+                                        <div key={item.id} className="flex justify-between items-center text-sm p-3 bg-white/[0.02] border border-white/5 rounded-2xl">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-red-500 shadow-lg shadow-red-500/50" />
-                                                <span className="font-medium text-slate-300">Material #0{i + 1} Crit.</span>
+                                                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                                                <span className="font-medium text-slate-300 truncate max-w-[150px]">{item.name}</span>
                                             </div>
-                                            <span className="font-black font-mono text-red-400">03 u.</span>
+                                            <div className="text-right">
+                                                <span className="font-black font-mono text-red-400 block leading-none">
+                                                    {item.currentStock} u.
+                                                </span>
+                                                <span className="text-[9px] text-slate-600 uppercase font-black tracking-tighter">Min: {item.minStock}</span>
+                                            </div>
                                         </div>
                                     ))
                                 ) : (
-                                    <p className="text-sm text-slate-500 text-center py-4 italic">Niveles de stock estables.</p>
+                                    <div className="py-8 text-center bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
+                                        <CheckCircle2 className="w-8 h-8 text-emerald-500/20 mx-auto mb-2" />
+                                        <p className="text-xs text-slate-500 font-medium">Niveles de stock estables.</p>
+                                    </div>
                                 )}
                             </div>
                         </section>

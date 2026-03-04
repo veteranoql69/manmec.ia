@@ -1,16 +1,17 @@
 import { requireRole } from "@/lib/auth";
 import { SupervisorDashboardClient } from "@/components/dashboard/SupervisorDashboardClient";
-import { getDashboardStats, getCurrentOperations, getRecentChronology } from "./actions";
+import { getDashboardStats, getCurrentOperations, getRecentChronology, getCriticalInventory } from "./actions";
 
 export default async function SupervisorDashboardPage() {
     // Solo SUPERVISOR o superior
     const profile = await requireRole("SUPERVISOR");
 
     // Obtener datos reales
-    const [stats, currentOps, chronology] = await Promise.all([
+    const [stats, currentOps, chronology, criticalInventory] = await Promise.all([
         getDashboardStats(),
         getCurrentOperations(),
-        getRecentChronology()
+        getRecentChronology(),
+        getCriticalInventory()
     ]);
 
     return (
@@ -40,6 +41,7 @@ export default async function SupervisorDashboardPage() {
                     stats={stats}
                     currentOps={currentOps}
                     chronology={chronology}
+                    criticalInventory={criticalInventory}
                 />
             </div>
         </div>
