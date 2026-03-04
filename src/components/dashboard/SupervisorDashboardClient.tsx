@@ -28,6 +28,7 @@ interface OpsItem {
     vehicle: string;
     ot: string;
     status: string;
+    createdAt: string;
     updatedAt: string;
 }
 
@@ -52,8 +53,8 @@ interface Props {
 
 export function SupervisorDashboardClient({ profile, stats: realStats, currentOps, chronology, criticalInventory }: Props) {
     const [search, setSearch] = useState("");
-    const [sortKey, setSortKey] = useState<keyof OpsItem>("ot");
-    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+    const [sortKey, setSortKey] = useState<keyof OpsItem>("createdAt");
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const [visibleOps, setVisibleOps] = useState(8);
 
     const kpis = [
@@ -70,11 +71,18 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
         );
 
         result.sort((a, b) => {
-            const valA = a[sortKey].toString();
-            const valB = b[sortKey].toString();
+            const valA = a[sortKey] || "";
+            const valB = b[sortKey] || "";
+
+            if (sortKey === "createdAt" || sortKey === "updatedAt") {
+                return sortOrder === "asc"
+                    ? new Date(valA).getTime() - new Date(valB).getTime()
+                    : new Date(valB).getTime() - new Date(valA).getTime();
+            }
+
             return sortOrder === "asc"
-                ? valA.localeCompare(valB)
-                : valB.localeCompare(valA);
+                ? valA.toString().localeCompare(valB.toString())
+                : valB.toString().localeCompare(valA.toString());
         });
 
         return result;
@@ -151,6 +159,9 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                         <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("ot")}>
                                             <div className="flex items-center gap-2">OT Asignada <SortIcon colKey="ot" /></div>
                                         </th>
+                                        <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("createdAt")}>
+                                            <div className="flex items-center gap-2">Llegada <SortIcon colKey="createdAt" /></div>
+                                        </th>
                                         <th className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("status")}>
                                             <div className="flex items-center gap-2 justify-end">Estado <SortIcon colKey="status" /></div>
                                         </th>
@@ -181,6 +192,16 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                                     </span>
                                                     <ExternalLink className="w-3 h-3 transition-transform group-hover/link:-translate-y-0.5" />
                                                 </Link>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-black text-slate-300">
+                                                        {new Date(op.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+                                                        {new Date(op.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${op.status === "WORKING" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :

@@ -7,9 +7,10 @@ import { generateLogisticsSuggestion } from "@/app/dashboard/ots/ai-actions";
 
 interface MobileWarehouseTabsProps {
     ot: any;
+    disabled?: boolean;
 }
 
-export function MobileWarehouseTabs({ ot }: MobileWarehouseTabsProps) {
+export function MobileWarehouseTabs({ ot, disabled = false }: MobileWarehouseTabsProps) {
     const [activeTab, setActiveTab] = useState<'vehicle' | 'stock' | 'ai'>('vehicle');
     const [aiLoading, setAiLoading] = useState(false);
     const [aiData, setAiData] = useState<any[] | null>(null);
@@ -251,17 +252,19 @@ export function MobileWarehouseTabs({ ot }: MobileWarehouseTabsProps) {
                                         </div>
                                     )}
 
-                                    {/* Action Button */}
-                                    <div className="pt-4 mt-auto border-t border-white/10">
-                                        <button className="w-full relative group overflow-hidden rounded-2xl p-[1px]">
-                                            <span className="absolute inset-0 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-rose-600 rounded-2xl" />
-                                            <div className="relative bg-black/50 backdrop-blur-sm px-6 py-4 rounded-2xl flex items-center justify-center gap-3 transition-all group-hover:bg-transparent">
-                                                <PackageSearch className="w-5 h-5 text-white" />
-                                                <span className="font-black text-sm uppercase tracking-widest text-white text-shadow-sm">Traspasar a Furgón</span>
-                                            </div>
-                                        </button>
-                                        <p className="text-center text-[9px] text-slate-500 mt-3 uppercase tracking-widest font-bold">Generará 2 Movimientos de Inventario</p>
-                                    </div>
+                                    {/* Action Button (Hidden if disabled) */}
+                                    {!disabled && (
+                                        <div className="pt-4 mt-auto border-t border-white/10">
+                                            <button className="w-full relative group overflow-hidden rounded-2xl p-[1px]">
+                                                <span className="absolute inset-0 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-rose-600 rounded-2xl" />
+                                                <div className="relative bg-black/50 backdrop-blur-sm px-6 py-4 rounded-2xl flex items-center justify-center gap-3 transition-all group-hover:bg-transparent">
+                                                    <PackageSearch className="w-5 h-5 text-white" />
+                                                    <span className="font-black text-sm uppercase tracking-widest text-white text-shadow-sm">Traspasar a Furgón</span>
+                                                </div>
+                                            </button>
+                                            <p className="center text-[9px] text-slate-500 mt-3 uppercase tracking-widest font-bold text-center">Generará 2 Movimientos de Inventario</p>
+                                        </div>
+                                    )}
                                 </>
                             )}
                         </motion.div>

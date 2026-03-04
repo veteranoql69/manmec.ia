@@ -3,7 +3,7 @@ import path from 'path';
 
 /**
  * SIMULADOR DE WEBHOOK DE CORREO - MANMEC
- * Ejecutar con: npx tsx scripts/simulate-email.ts [escenario] [archivo_pdf]
+ * Ejecutar con: npx tsx scripts/simulate-email.ts [escenario] [archivo_pdf] [to] [id] [subject] [body]
  */
 
 const WEBHOOK_URL = 'http://localhost:3000/api/webhooks/notifications/email';
@@ -76,6 +76,19 @@ async function simulate() {
         default:
             console.error('❌ Escenario no reconocido. Usa: OT_OPEN, OT_CLOSE o SHIPMENT');
             process.exit(1);
+    }
+
+    // Sobrescribir con valores personalizados si se proveen (argumentos 6 y 7)
+    const customSubject = process.argv[6];
+    const customBody = process.argv[7];
+
+    if (customSubject) {
+        console.log(`📝 Usando Asunto Personalizado: ${customSubject}`);
+        payload.subject = customSubject;
+    }
+    if (customBody) {
+        console.log(`📝 Usando Cuerpo Personalizado: ${customBody}`);
+        payload.body = customBody;
     }
 
     try {

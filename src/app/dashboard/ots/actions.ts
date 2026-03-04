@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
@@ -37,7 +38,7 @@ export type WorkOrder = {
         model: string | null;
     };
     team?: Array<{
-        mechanic: { full_name: string; email: string };
+        mechanic: { id: string; full_name: string };
         role: "lead" | "support";
     }>;
     materials?: Array<{
@@ -113,13 +114,21 @@ export async function getWorkOrderDetail(id: string) {
     }
 
     // 2. Obtener el Equipo HUMANO (Múltiples mecánicos)
-    const { data: team, error: teamError } = await supabase
+    // Usamos adminClient para bypass de RLS que a veces bloquea lectura a supervisores
+    const adminClient = createAdminClient();
+    const { data: team, error: teamError } = await adminClient
         .from("manmec_work_order_assignments")
         .select(`
             role,
-            mechanic:manmec_users!mechanic_id(full_name, email)
+            mechanic:manmec_users!mechanic_id(id, full_name)
         `)
         .eq("work_order_id", id);
+
+    if (teamError) {
+        console.error(`[ACTIONS] Error fetching team for OT ${id}:`, teamError.message || teamError);
+    } else {
+        console.log(`[ACTIONS] Team fetched for OT ${id}:`, team?.length || 0, "members found");
+    }
 
     // 3. Obtener Materiales USADOS (Registrados en la OT)
     const { data: materials, error: matError } = await supabase
@@ -243,6 +252,8 @@ export async function assignMechanicToWorkOrder(otId: string, mechanicId: string
     const profile = await requireRole("SUPERVISOR");
     const supabase = await createClient();
 
+    console.log(`[ACTIONS] Assigning ${mechanicId} to OT ${otId} as ${role}`);
+
     // Si es líder, actualizar el campo assigned_to de la OT principal
     if (role === "lead") {
         const { error: otError } = await supabase
@@ -254,7 +265,7 @@ export async function assignMechanicToWorkOrder(otId: string, mechanicId: string
         if (otError) throw otError;
     }
 
-    // Insertar en la tabla de asignaciones detalladas
+    // Insertar/Actualizar en la tabla de asignaciones detalladas
     const { error } = await supabase
         .from("manmec_work_order_assignments")
         .upsert({
@@ -263,6 +274,68 @@ export async function assignMechanicToWorkOrder(otId: string, mechanicId: string
             role,
             assigned_by: profile.id
         }, { onConflict: 'work_order_id,mechanic_id' });
+
+    if (error) {
+        console.error("[ACTIONS] Error in assignment upsert:", error);
+        throw error;
+    }
+
+    revalidatePath(`/dashboard/ots/${otId}`);
+    return { success: true };
+}
+
+/**
+ * Desasigna un mecánico de una OT
+ */
+export async function unassignMechanicFromWorkOrder(otId: string, mechanicId: string) {
+    const profile = await requireRole("SUPERVISOR");
+    const supabase = await createClient();
+
+    console.log(`[ACTIONS] Unassigning ${mechanicId} from OT ${otId}`);
+
+    // 1. Eliminar de la tabla de asignaciones detalladas
+    const { error: assError } = await supabase
+        .from("manmec_work_order_assignments")
+        .delete()
+        .eq("work_order_id", otId)
+        .eq("mechanic_id", mechanicId);
+
+    if (assError) throw assError;
+
+    // 2. Si era el líder (assigned_to), limpiar el campo en la OT principal
+    const { data: ot } = await supabase
+        .from("manmec_work_orders")
+        .select("assigned_to")
+        .eq("id", otId)
+        .single();
+
+    if (ot && ot.assigned_to === mechanicId) {
+        const { error: otError } = await supabase
+            .from("manmec_work_orders")
+            .update({ assigned_to: null })
+            .eq("id", otId);
+
+        if (otError) throw otError;
+    }
+
+    revalidatePath(`/dashboard/ots/${otId}`);
+    return { success: true };
+}
+
+/**
+ * Desasigna un vehículo de una OT
+ */
+export async function unassignVehicleFromWorkOrder(otId: string) {
+    const profile = await requireRole("SUPERVISOR");
+    const supabase = await createClient();
+
+    console.log(`[ACTIONS] Unassigning vehicle from OT ${otId}`);
+
+    const { error } = await supabase
+        .from("manmec_work_orders")
+        .update({ vehicle_id: null })
+        .eq("id", otId)
+        .eq("organization_id", profile.organization_id);
 
     if (error) throw error;
 

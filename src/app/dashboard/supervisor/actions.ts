@@ -97,6 +97,7 @@ export async function getCurrentOperations() {
         .select(`
             id,
             status,
+            created_at,
             updated_at,
             assigned_user:assigned_to(full_name),
             vehicle:vehicle_id(plate)
@@ -116,6 +117,7 @@ export async function getCurrentOperations() {
         vehicle: (wo.vehicle as any)?.plate || "N/A",
         ot: wo.id,
         status: wo.status,
+        createdAt: wo.created_at,
         updatedAt: wo.updated_at
     }));
 }
