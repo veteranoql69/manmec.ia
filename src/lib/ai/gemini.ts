@@ -2,7 +2,8 @@ import { GoogleGenerativeAI, Tool, SchemaType } from "@google/generative-ai";
 import { generateSystemPrompt } from "./prompts";
 import { getInventoryStock, getWorkOrders, getServiceStations } from "./tools";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+export const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+export const VISION_MODEL = "gemini-1.5-flash"; // Modelo para procesamiento de imágenes/PDFs
 
 /**
  * Define las herramientas disponibles para Gemini

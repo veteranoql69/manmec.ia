@@ -698,7 +698,7 @@ export function InventoryClient({
                 isOpen={transferModalData.isOpen}
                 onClose={() => setTransferModalData({ isOpen: false })}
                 warehouses={warehouses as any}
-                currentWarehouseId={transferModalData.fromWarehouseId || selectedWarehouseId || warehouses[0]?.id || ""}
+                fromWarehouseId={transferModalData.fromWarehouseId || ""}
                 preSelectedType={transferModalData.type}
                 preSelectedId={transferModalData.preSelectedId}
                 preSelectedName={transferModalData.itemName}

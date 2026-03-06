@@ -12,7 +12,7 @@ async function verifySchema() {
 
     const { data, error } = await supabase.rpc('inspect_table_columns', {
         t_name: 'manmec_shipments'
-    }).catch(() => ({ data: null, error: 'RPC not found' }))
+    })
 
     // Si no hay RPC, usamos una query directa a information_schema
     const { data: cols, error: colError } = await supabase

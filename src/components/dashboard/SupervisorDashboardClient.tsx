@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
     ArrowUpDown,
@@ -56,6 +56,11 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
     const [sortKey, setSortKey] = useState<keyof OpsItem>("createdAt");
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const [visibleOps, setVisibleOps] = useState(8);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const kpis = [
         { label: "OTs Activas", value: realStats.activeOts.toString(), icon: Activity, color: "text-blue-400", bg: "bg-blue-400/10" },
@@ -196,10 +201,10 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col">
                                                     <span className="text-xs font-black text-slate-300">
-                                                        {new Date(op.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        {mounted ? new Date(op.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                                                     </span>
                                                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
-                                                        {new Date(op.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}
+                                                        {mounted ? new Date(op.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }) : "---"}
                                                     </span>
                                                 </div>
                                             </td>
