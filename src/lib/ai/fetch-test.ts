@@ -16,14 +16,14 @@ async function testFetch() {
         console.log("Status Code:", response.status);
         if (response.ok) {
             console.log("--- Modelos Disponibles (via Fetch) ---");
-            // @ts-ignore
-            data.models?.forEach((m: any) => console.log(`- ${m.name}`));
+            data.models?.forEach((m: { name: string }) => console.log(`- ${m.name}`));
         } else {
             console.error("--- ERROR DE API ---");
             console.error(JSON.stringify(data, null, 2));
         }
-    } catch (e: any) {
-        console.error("Error en Fetch:", e.message);
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Error desconocido";
+        console.error("Error en Fetch:", message);
     }
 }
 

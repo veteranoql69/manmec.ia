@@ -1,0 +1,51 @@
+﻿
+> manmec@0.1.0 lint
+> eslint src/app/dashboard src/components/dashboard/stations
+
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\app\dashboard\fleet\actions.ts
+  132:37  warning  'warehouseError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\app\dashboard\fleet\page.tsx
+  7:11  warning  'profile' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\app\dashboard\ots\actions.ts
+  112:11  warning  'profile' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\app\dashboard\ots\page.tsx
+  7:11  warning  'profile' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\app\dashboard\shipments\actions.ts
+  3:32  warning  'ExtractedShipment' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\app\dashboard\shipments\page.tsx
+  3:10  warning  'Package' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\app\dashboard\stations\page.tsx
+  7:11  warning  'profile' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\app\dashboard\supervisor\actions.ts
+   41:45  error    Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+   74:45  error    Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  116:44  error    Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  117:33  error    Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  129:11  warning  'profile' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  150:34  error    Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\app\dashboard\tools\page.tsx
+  36:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\app\dashboard\warehouses\actions.ts
+  195:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  196:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  197:25  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  198:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  236:31  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  237:31  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\siste\Documents\Antigravity_project\manmec\src\components\dashboard\stations\StationManagementClient.tsx
+  6:27  warning  'Phone' is defined but never used  @typescript-eslint/no-unused-vars
+
+Ô£û 21 problems (12 errors, 9 warnings)
+
+

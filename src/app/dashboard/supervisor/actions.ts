@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Obtiene las métricas clave para el panel del supervisor conectadas a datos reales
@@ -38,7 +39,8 @@ export async function getDashboardStats() {
         .eq("is_active", true);
 
     const criticalCount = items?.filter(item => {
-        const currentTotal = (item.stock as any[])?.reduce((acc, s) => acc + Number(s.quantity), 0) || 0;
+        const stockItems = (item.stock as unknown as Array<{ quantity: number }>) || [];
+        const currentTotal = stockItems.reduce((acc, s) => acc + Number(s.quantity), 0) || 0;
         return currentTotal <= Number(item.min_stock);
     }).length || 0;
 
@@ -71,7 +73,8 @@ export async function getCriticalInventory() {
 
     // Procesar y ordenar por los más críticos (menor stock relativo al mínimo)
     const processed = items.map(item => {
-        const currentTotal = (item.stock as any[])?.reduce((acc, s) => acc + Number(s.quantity), 0) || 0;
+        const stockItems = (item.stock as unknown as Array<{ quantity: number }>) || [];
+        const currentTotal = stockItems.reduce((acc, s) => acc + Number(s.quantity), 0) || 0;
         return {
             id: item.id,
             name: item.name,
@@ -111,22 +114,26 @@ export async function getCurrentOperations() {
         throw error;
     }
 
-    return workOrders.map(wo => ({
-        id: wo.id,
-        mechanicName: (wo.assigned_user as any)?.full_name || "POR ASIGNAR",
-        vehicle: (wo.vehicle as any)?.plate || "N/A",
-        ot: wo.id,
-        status: wo.status,
-        createdAt: wo.created_at,
-        updatedAt: wo.updated_at
-    }));
+    return workOrders.map(wo => {
+        const assignedUser = wo.assigned_user as unknown as { full_name: string } | null;
+        const vehicle = wo.vehicle as unknown as { plate: string } | null;
+        return {
+            id: wo.id,
+            mechanicName: assignedUser?.full_name || "POR ASIGNAR",
+            vehicle: vehicle?.plate || "N/A",
+            ot: wo.id,
+            status: wo.status,
+            createdAt: wo.created_at,
+            updatedAt: wo.updated_at
+        };
+    });
 }
 
 /**
  * Obtiene el historial cronológico de la organización con un límite mayor para el cliente
  */
 export async function getRecentChronology() {
-    const profile = await requireRole("SUPERVISOR");
+    await requireRole("SUPERVISOR");
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -140,18 +147,25 @@ export async function getRecentChronology() {
             work_order:work_order_id(id)
         `)
         .order("created_at", { ascending: false })
-        .limit(30); // Aumentamos el límite para permitir agrupación eficiente en el cliente
+        .limit(30);
 
     if (error) {
         console.error("Error fetching timeline:", error);
         return [];
     }
 
-    const timelineData = data as any[];
+    const timelineData = (data || []) as Array<{
+        id: string;
+        content: string | null;
+        created_at: string;
+        entry_type: string;
+        user: unknown;
+        work_order: unknown;
+    }>;
 
     return timelineData.map(entry => {
-        const userProfile = Array.isArray(entry.user) ? entry.user[0] : entry.user;
-        const workOrder = Array.isArray(entry.work_order) ? entry.work_order[0] : entry.work_order;
+        const userProfile = Array.isArray(entry.user) ? entry.user[0] : (entry.user as { full_name: string } | null);
+        const workOrder = Array.isArray(entry.work_order) ? entry.work_order[0] : (entry.work_order as { id: string } | null);
 
         return {
             id: entry.id,

@@ -13,8 +13,8 @@ interface Resource {
     id: string;
     full_name?: string;
     plate?: string;
-    brand?: string;
-    model?: string;
+    brand?: string | null;
+    model?: string | null;
 }
 
 interface Props {

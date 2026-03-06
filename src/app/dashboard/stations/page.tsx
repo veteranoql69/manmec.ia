@@ -4,7 +4,7 @@ import StationManagementClient from "@/components/dashboard/stations/StationMana
 import { MapPin } from "lucide-react";
 
 export default async function StationsPage() {
-    const profile = await requireRole("SUPERVISOR");
+    await requireRole("SUPERVISOR");
     const stations = await getServiceStations();
 
     return (

@@ -11,18 +11,16 @@ async function listModels() {
     const genAI = new GoogleGenerativeAI(apiKey);
 
     try {
-        // En v0.24.1 listModels está en genAI.getGenerativeModel({ model: '...' })?
-        // No, listModels es un método de genAI
-        // @ts-ignore
-        const models = await genAI.listModels();
+        // Usar cast a unknown para evitar errores de tipo en métodos dinámicos del SDK
+        const genAIUnknown = genAI as unknown as { listModels: () => Promise<{ models: { name: string; supportedGenerationMethods: string[] }[] }> };
+        const models = await genAIUnknown.listModels();
         console.log("--- Modelos Disponibles ---");
-        // @ts-ignore
         for (const model of models.models) {
             console.log(`- ${model.name} (${model.supportedGenerationMethods})`);
         }
-    } catch (e: any) {
-        console.log("Error al listar modelos:", e.message);
-        // Quizás no es listModels, probamos con una petición directa si falla
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Error desconocido";
+        console.log("Error al listar modelos:", message);
     }
 }
 

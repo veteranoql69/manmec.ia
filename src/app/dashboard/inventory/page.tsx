@@ -1,6 +1,5 @@
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { Package, Plus } from "lucide-react";
 import { InventoryClient } from "@/components/dashboard/inventory/InventoryClient";
 
 export default async function InventoryPage({
@@ -8,7 +7,7 @@ export default async function InventoryPage({
 }: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-    const profile = await requireRole("SUPERVISOR");
+    const profile = await requireRole("MECHANIC");
     const supabase = await createClient();
     const resolvedParams = await searchParams;
     const initialWarehouseId = typeof resolvedParams.warehouse === 'string' ? resolvedParams.warehouse : "all";
@@ -40,8 +39,8 @@ export default async function InventoryPage({
 
     // 3. Procesar los items para tener el total_stock calculado
     const enrichedItems = items?.map(item => {
-        const stockData = (item as any).stock || [];
-        const total = (stockData as any[]).reduce((sum, s) => sum + Number(s.quantity), 0);
+        const stockData = (item as unknown as { stock: Array<{ quantity: number; warehouse_id: string }> }).stock || [];
+        const total = stockData.reduce((sum, s) => sum + Number(s.quantity), 0);
 
         return {
             id: item.id,
@@ -66,25 +65,33 @@ export default async function InventoryPage({
         console.error("Error al cargar herramientas:", toolsError);
     }
 
-    // 5. Consultar traspasos entrantes pendientes para las bodegas donde el usuario tiene acceso
-    const { data: pendingTransfers, error: pendingError } = await supabase
+    // 5. Consultar traspasos entrantes y salientes pendientes del usuario
+    const { data: allPendingTransfers, error: pendingError } = await supabase
         .from("manmec_inventory_transfers")
         .select(`
             id,
             quantity,
             created_at,
+            sender_id,
+            receiver_id,
             item:manmec_inventory_items(name, sku),
             tool:manmec_tools(name, serial_number),
             sender:manmec_users!manmec_inventory_transfers_sender_id_fkey(full_name),
-            from_warehouse:manmec_warehouses!manmec_inventory_transfers_from_warehouse_id_fkey(name)
+            receiver:manmec_users!manmec_inventory_transfers_receiver_id_fkey(full_name),
+            from_warehouse:manmec_warehouses!manmec_inventory_transfers_from_warehouse_id_fkey(name),
+            to_warehouse:manmec_warehouses!manmec_inventory_transfers_to_warehouse_id_fkey(name)
         `)
         .eq("organization_id", profile.organization_id!)
         .eq("status", "PENDING")
+        .or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
         .order("created_at", { ascending: false });
 
     if (pendingError) {
         console.error("DEBUG FETCHING TRANSFERS ERROR:", pendingError);
     }
+
+    const incomingTransfers = allPendingTransfers?.filter(t => t.receiver_id === profile.id) || [];
+    const outgoingTransfers = allPendingTransfers?.filter(t => t.sender_id === profile.id && t.receiver_id !== profile.id) || [];
 
     return (
         <div className="p-4 md:p-8">
@@ -95,7 +102,8 @@ export default async function InventoryPage({
                     initialTools={tools || []}
                     warehouses={warehouses || []}
                     initialWarehouseId={initialWarehouseId}
-                    pendingTransfers={pendingTransfers || []}
+                    incomingTransfers={incomingTransfers}
+                    outgoingTransfers={outgoingTransfers}
                 />
             </div>
         </div>

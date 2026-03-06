@@ -13,20 +13,33 @@ import {
 } from "lucide-react";
 import type { ManmecUserProfile } from "@/lib/auth";
 
-interface Props {
-    profile: ManmecUserProfile;
+interface OTItem {
+    id: string;
+    title: string;
+    priority: string;
+    status: string;
+    stationName: string;
+    vehiclePlate: string | null;
 }
 
-export function MechanicDashboardClient({ profile }: Props) {
-    // Datos simulados por ahora (luego vendrán de Supabase Realtime/Prisma)
-    const activeOTs = [
-        { id: "OT-2026-0001", title: "Cambio de Bujías - Camión Ford", priority: "P2", status: "IN_PROGRESS" },
-        { id: "OT-2026-0005", title: "Revisión Sistema Eléctrico", priority: "P1", status: "PENDING" },
-    ];
+interface InventoryAlert {
+    item: string;
+    qty: number;
+    status: string;
+}
 
-    const inventoryAlerts = [
-        { item: "Filtro de Aire - King", qty: 2, status: "critical" },
-    ];
+interface Props {
+    profile: ManmecUserProfile;
+    initialActiveOTs: OTItem[];
+    inventoryAlerts: InventoryAlert[];
+    vehicleInfo: { plate: string; maintenance_km: number } | null;
+}
+
+export function MechanicDashboardClient({ profile, initialActiveOTs, inventoryAlerts, vehicleInfo }: Props) {
+    // Use real data passed from server
+    const activeOTs = initialActiveOTs;
+
+    // Remove old mock variables
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -77,7 +90,7 @@ export function MechanicDashboardClient({ profile }: Props) {
                                         <div className={`w-2 h-2 rounded-full ${ot.status === 'IN_PROGRESS' ? 'bg-blue-400 animate-pulse' : 'bg-slate-600'}`} />
                                         {ot.status.replace('_', ' ')}
                                     </div>
-                                    <div className="text-slate-500">Local de Servicio #4</div>
+                                    <div className="text-slate-500">{ot.stationName} {ot.vehiclePlate ? `| ${ot.vehiclePlate}` : ''}</div>
                                 </div>
                             </motion.div>
                         ))}
@@ -109,10 +122,10 @@ export function MechanicDashboardClient({ profile }: Props) {
                         <div className="space-y-2">
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-400">Total ítems</span>
-                                <span className="font-mono">42</span>
+                                <span className="font-mono">{inventoryAlerts.length > 0 ? 'Ver Detalle' : '0'}</span>
                             </div>
                             <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                <div className="w-3/4 h-full bg-orange-500 rounded-full" />
+                                <div className={`h-full rounded-full transition-all ${inventoryAlerts.length > 0 ? 'w-3/4 bg-orange-500' : 'w-full bg-emerald-500'}`} />
                             </div>
                         </div>
 
@@ -134,18 +147,30 @@ export function MechanicDashboardClient({ profile }: Props) {
                     </button>
                 </section>
 
-                <section className="bg-gradient-to-br from-indigo-500/10 to-blue-500/5 border border-indigo-500/20 rounded-2xl p-6">
-                    <h2 className="font-semibold mb-2 flex items-center gap-2">
-                        <Wrench className="w-4 h-4 text-indigo-400" />
-                        Próximo mantenimiento
-                    </h2>
-                    <p className="text-sm text-slate-400 mb-4">
-                        Tu vehículo (Patente: AB-CD-12) requiere revisión en 450 km.
-                    </p>
-                    <div className="h-2 bg-slate-800 rounded-full">
-                        <div className="w-[85%] h-full bg-indigo-500 rounded-full" />
-                    </div>
-                </section>
+                {vehicleInfo ? (
+                    <section className="bg-gradient-to-br from-indigo-500/10 to-blue-500/5 border border-indigo-500/20 rounded-2xl p-6">
+                        <h2 className="font-semibold mb-2 flex items-center gap-2">
+                            <Wrench className="w-4 h-4 text-indigo-400" />
+                            Próximo mantenimiento
+                        </h2>
+                        <p className="text-sm text-slate-400 mb-4">
+                            Tu vehículo en uso (Patente: {vehicleInfo.plate}) requiere revisión en {vehicleInfo.maintenance_km} km.
+                        </p>
+                        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div className="w-[85%] h-full bg-indigo-500 rounded-full" />
+                        </div>
+                    </section>
+                ) : (
+                    <section className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
+                        <h2 className="font-semibold text-slate-400 mb-2 flex items-center gap-2">
+                            <Wrench className="w-4 h-4 text-slate-500" />
+                            Sin Vehículo Asignado
+                        </h2>
+                        <p className="text-sm text-slate-500">
+                            Actualmente no tienes un vehículo (furgón móvil) asignado para el día de hoy mediante una OT.
+                        </p>
+                    </section>
+                )}
             </div>
 
         </div>

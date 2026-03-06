@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         logToFile(`🧠 Procesando correo para org: ${org.name}${pdfBuffer ? ' (con PDF)' : ''}`);
 
         // 1.8. Obtener un usuario base de la organización para las acciones automáticas
-        let { data: adminUser } = await supabase
+        const { data: adminUser } = await supabase
             .from("manmec_users")
             .select("id")
             .eq("organization_id", org.id)
@@ -116,9 +116,10 @@ export async function POST(req: NextRequest) {
                 .eq("id", existingWo.id);
 
             // 1.9. Automatización de Materiales e Inventario
-            const repuestos = parsedData.metadata?.repuestos || [];
+            const metadata = (parsedData.metadata || {}) as any;
+            const repuestos = (metadata.repuestos || []) as any[];
             logToFile(`📦 Repuestos detectados: ${JSON.stringify(repuestos)}`);
-            if (repuestos.length > 0) {
+            if (Array.isArray(repuestos) && repuestos.length > 0) {
                 logToFile(`📦 Procesando ${repuestos.length} repuestos para inventario...`);
                 for (const rep of repuestos) {
                     try {

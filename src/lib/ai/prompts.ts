@@ -6,6 +6,7 @@ export function generateSystemPrompt(settings: {
     name?: string;
     communication_style?: string;
     extra_instructions?: string;
+    [key: string]: unknown;
 }) {
     const name = settings.name || "Asistente Manmec";
     const style = settings.communication_style || "formal";

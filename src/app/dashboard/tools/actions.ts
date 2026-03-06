@@ -26,7 +26,7 @@ export type Tool = {
  * Obtiene todas las herramientas de la organización con sus asignaciones
  */
 export async function getTools() {
-    const profile = await requireRole("SUPERVISOR");
+    const profile = await requireRole("MECHANIC");
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -47,7 +47,7 @@ export async function getTools() {
         throw error;
     }
 
-    return data as any[] as Tool[];
+    return (data || []) as Tool[];
 }
 
 /**
@@ -194,8 +194,8 @@ export async function bulkUpsertTools(baseData: Partial<Tool>, distributions: To
             }
             // Si pasamos sin error, rompemos el loop
             break;
-        } catch (err) {
-            finalError = err;
+        } catch (err: unknown) {
+            finalError = err instanceof Error ? err : new Error(String(err));
             break;
         }
     }

@@ -24,7 +24,7 @@ function formatRut(value: string): string {
     const dv = clean.slice(-1);
 
     // Formatear cuerpo con puntos
-    let formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
     return `${formattedBody}-${dv}`;
 }
@@ -173,26 +173,41 @@ export function OnboardingForm({ prefilledDomain, hasOrg, orgName, userId }: Onb
                 </div>
 
                 {/* Rol */}
-                <div>
-                    <label htmlFor="role" className="block text-sm font-medium text-slate-300 mb-1.5">
-                        Rol en la Empresa <span className="text-red-400">*</span>
-                    </label>
-                    <select
-                        id="role"
-                        name="role"
-                        required
-                        className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-colors appearance-none"
-                    >
-                        <option value="">Selecciona tu rol...</option>
-                        {/* Only allow MANAGER creation if they are creating the org */}
-                        {!hasOrg && <option value="MANAGER">Administrador / Gerente</option>}
-                        <option value="SUPERVISOR">Supervisor</option>
-                        <option value="MECHANIC">Técnico / Mecánico</option>
-                    </select>
-                    {state.fieldErrors?.role && (
-                        <p className="mt-1.5 text-xs text-red-400">{state.fieldErrors.role[0]}</p>
-                    )}
-                </div>
+                {hasOrg ? (
+                    <div>
+                        <input type="hidden" name="role" value="MECHANIC" />
+                        <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                            Rol Asignado
+                        </label>
+                        <div className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-slate-400 cursor-not-allowed">
+                            Técnico / Mecánico (Por defecto)
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                            Un administrador podrá actualizar tu rol más adelante si es necesario.
+                        </p>
+                    </div>
+                ) : (
+                    <div>
+                        <label htmlFor="role" className="block text-sm font-medium text-slate-300 mb-1.5">
+                            Rol en la Empresa <span className="text-red-400">*</span>
+                        </label>
+                        <select
+                            id="role"
+                            name="role"
+                            required
+                            className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-colors appearance-none"
+                        >
+                            <option value="">Selecciona tu rol...</option>
+                            <option value="COMPANY_ADMIN">Administrador de Empresa</option>
+                            <option value="MANAGER">Gerente de Operaciones</option>
+                            <option value="SUPERVISOR">Supervisor</option>
+                            <option value="MECHANIC">Técnico / Mecánico</option>
+                        </select>
+                        {state.fieldErrors?.role && (
+                            <p className="mt-1.5 text-xs text-red-400">{state.fieldErrors.role[0]}</p>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Error global */}

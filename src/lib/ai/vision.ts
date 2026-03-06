@@ -60,9 +60,10 @@ export async function analyzeShipmentImage(base64Image: string): Promise<Extract
     try {
         // Limpiar posibles etiquetas de markdown del JSON
         const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
-        return JSON.parse(cleanJson);
-    } catch (error) {
-        console.error("Error parseando JSON de Gemini:", text);
+        return JSON.parse(cleanJson) as ExtractedShipment;
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Error desconocido";
+        console.error("Error parseando JSON de Gemini:", text, message);
         throw new Error("La IA no pudo generar un formato válido. Intenta con una foto más clara.");
     }
 }

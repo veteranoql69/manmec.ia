@@ -46,14 +46,19 @@ export async function generateLogisticsSuggestion(otId: string, currentVehicleId
     let totalHistoricalOtsWithMaterials = 0;
 
     if (historyOts) {
-        historyOts.forEach((hot: any) => {
-            if (hot.materials && hot.materials.length > 0) {
+        historyOts.forEach((hot) => {
+            const materials = (hot.materials as unknown) as Array<{
+                quantity: number;
+                item: { name: string; sku: string; unit: string } | { name: string; sku: string; unit: string }[] | null;
+            }>;
+            if (materials && materials.length > 0) {
                 totalHistoricalOtsWithMaterials++;
-                hot.materials.forEach((mat: any) => {
-                    const sku = mat.item?.sku;
+                materials.forEach((mat) => {
+                    const item = Array.isArray(mat.item) ? mat.item[0] : mat.item;
+                    const sku = item?.sku;
                     if (!sku) return;
                     if (!usageMap[sku]) {
-                        usageMap[sku] = { name: mat.item.name, sku: sku, totalQty: 0, count: 0 };
+                        usageMap[sku] = { name: item!.name, sku: sku, totalQty: 0, count: 0 };
                     }
                     usageMap[sku].totalQty += mat.quantity;
                     usageMap[sku].count += 1;
@@ -63,7 +68,7 @@ export async function generateLogisticsSuggestion(otId: string, currentVehicleId
     }
 
     // 4. Obtener stock actual del furgón
-    let currentStockMap: Record<string, number> = {};
+    const currentStockMap: Record<string, number> = {};
     const { data: warehouse } = await supabase
         .from("manmec_warehouses")
         .select("id")
@@ -78,9 +83,10 @@ export async function generateLogisticsSuggestion(otId: string, currentVehicleId
             .eq("warehouse_id", warehouse.id);
 
         if (stock) {
-            stock.forEach((s: any) => {
-                if (s.item?.sku) {
-                    currentStockMap[s.item.sku] = s.quantity;
+            ((stock as unknown) as Array<{ quantity: number; item: { sku: string } | { sku: string }[] | null }>).forEach((s) => {
+                const item = Array.isArray(s.item) ? s.item[0] : s.item;
+                if (item?.sku) {
+                    currentStockMap[item.sku] = s.quantity;
                 }
             });
         }
@@ -139,7 +145,7 @@ Devuelve EXCLUSIVAMENTE un arreglo JSON válido (sin texto antes ni después, si
 
         const parsed = JSON.parse(text);
         return { success: true, suggestions: parsed };
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error("Error procesando IA:", e);
         return { success: false, error: "Error al generar predicción IA." };
     }

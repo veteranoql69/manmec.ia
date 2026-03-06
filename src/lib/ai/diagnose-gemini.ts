@@ -34,14 +34,16 @@ async function diagnose() {
                 const result = await model.generateContent("test");
                 const response = await result.response;
                 console.log(`✅ EXITO con '${name}':`, response.text().substring(0, 20) + "...");
-            } catch (e: any) {
-                console.log(`❌ FALLO con '${name}': ${e.message}`);
+            } catch (e: unknown) {
+                const message = e instanceof Error ? e.message : "Error desconocido";
+                console.log(`❌ FALLO con '${name}': ${message}`);
             }
         }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Error desconocido";
         console.error("--- ERROR GENERAL ---");
-        console.error("Mensaje:", error.message);
+        console.error("Mensaje:", message);
     }
 }
 

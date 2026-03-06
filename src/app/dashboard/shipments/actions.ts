@@ -1,6 +1,6 @@
 "use server";
 
-import { analyzeShipmentImage, ExtractedShipment } from "@/lib/ai/vision";
+import { analyzeShipmentImage } from "@/lib/ai/vision";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -105,7 +105,7 @@ export async function saveShipment(data: {
             const code = item.barcode || item.code;
 
             if (code) {
-                const { data: existing, error: findError } = await supabase
+                const { data: existing } = await supabase
                     .from("manmec_inventory_items")
                     .select("id")
                     .eq("organization_id", data.organization_id)
@@ -219,8 +219,9 @@ export async function saveShipment(data: {
 
         return { success: true, shipmentId: shipment.id };
 
-    } catch (e: any) {
-        console.error("🚨 Error crítico en saveShipment:", e);
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Error desconocido";
+        console.error("🚨 Error crítico en saveShipment:", message);
         return { success: false, error: "Ha ocurrido un error interno al guardar la recepción." };
     }
 }

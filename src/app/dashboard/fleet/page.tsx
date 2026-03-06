@@ -4,7 +4,7 @@ import { getVehicles } from "./actions";
 import { Truck } from "lucide-react";
 
 export default async function FleetPage() {
-    const profile = await requireRole("SUPERVISOR");
+    await requireRole("SUPERVISOR");
     const vehicles = await getVehicles();
 
     return (

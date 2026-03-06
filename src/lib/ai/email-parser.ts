@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, Part } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -19,7 +19,7 @@ export interface ParsedEmailData {
     unit: string;
   }[];
   // Campos adicionales para el Dashboard de Triple Validación
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -31,7 +31,7 @@ export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer): Pro
     model: "gemini-flash-latest",
   });
 
-  const parts: any[] = [
+  const parts: { text: string; inlineData?: { data: string; mimeType: string } }[] = [
     {
       text: `
       Analiza este correo de mantenimiento/logística de COPEC y clasifícalo estrictamente en uno de estos tipos:
@@ -58,7 +58,8 @@ export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer): Pro
       inlineData: {
         data: pdfBuffer.toString("base64"),
         mimeType: "application/pdf"
-      }
+      },
+      text: "" // El SDK a veces requiere el campo text aunque esté vacío si se usa esta estructura
     });
     parts.push({
       text: `
@@ -70,13 +71,12 @@ export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer): Pro
   }
 
   const result = await model.generateContent({
-    contents: [{ role: "user", parts }],
+    contents: [{ role: "user", parts: parts as unknown as Part[] }],
     generationConfig: {
       responseMimeType: "application/json",
-      // Definimos el esquema implícitamente en el prompt o explícitamente si el SDK lo soporta
     }
   });
 
   const text = result.response.text();
-  return JSON.parse(text);
+  return JSON.parse(text) as ParsedEmailData;
 }

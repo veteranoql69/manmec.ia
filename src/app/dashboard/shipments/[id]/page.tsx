@@ -2,13 +2,25 @@ import { getShipmentById } from "../actions";
 import { requireRole } from "@/lib/auth";
 import {
     Package, Truck, Calendar, User,
-    ArrowLeft, FileText, CheckCircle2,
+    ArrowLeft, CheckCircle2,
     Hash, Layers, Clock
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { notFound } from "next/navigation";
+
+interface ShipmentItem {
+    id: string;
+    product: {
+        name: string;
+        sku: string | null;
+        barcode: string | null;
+        unit: string | null;
+    } | null;
+    received_qty: number;
+    unit_price: number;
+}
 
 export default async function ShipmentDetailPage({ params }: { params: { id: string } }) {
     await requireRole("SUPERVISOR");
@@ -99,7 +111,7 @@ export default async function ShipmentDetailPage({ params }: { params: { id: str
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                            {shipment.items.map((item: any) => (
+                            {shipment.items.map((item: ShipmentItem) => (
                                 <tr key={item.id} className="group hover:bg-white/[0.02] transition-colors">
                                     <td className="px-8 py-6">
                                         <div className="flex items-center gap-4">

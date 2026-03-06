@@ -6,13 +6,12 @@ import { X, Save, MapPin, Navigation, User, Phone, AlertTriangle } from "lucide-
 import { ServiceStation, upsertServiceStation } from "@/app/dashboard/stations/actions";
 
 interface Props {
-    isOpen: boolean;
     onClose: () => void;
     station: ServiceStation | null;
     onSuccess: (station: ServiceStation) => void;
 }
 
-export function StationModal({ isOpen, onClose, station, onSuccess }: Props) {
+export function StationModal({ onClose, station, onSuccess }: Props) {
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState<Partial<ServiceStation>>({
         name: "",
@@ -39,14 +38,16 @@ export function StationModal({ isOpen, onClose, station, onSuccess }: Props) {
             const result = await upsertServiceStation(formData);
             if (result.success) {
                 // Para efectos de UI inmediata, pasamos el formData
+                // Nota: faltan algunos campos técnicos (organization_id, etc.) pero para la lista local bastan
                 onSuccess({ ...formData, id: station?.id || Math.random().toString() } as ServiceStation);
                 onClose();
             } else if (result.error) {
                 setError(result.error);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            setError(err.message || "Error desconocido al guardar la estación");
+            const message = err instanceof Error ? err.message : "Error desconocido al guardar la estación";
+            setError(message);
         } finally {
             setLoading(false);
         }

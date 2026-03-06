@@ -43,21 +43,27 @@ export default async function DashboardLayout({
                         </div>
                         <SidebarLink href="/dashboard/tools" icon={<Wrench size={20} />} label="Herramientas" />
                         <SidebarLink href="/dashboard/inventory" icon={<Box size={20} />} label="Insumos / Stock" />
-                        <SidebarLink href="/dashboard/warehouses" icon={<Warehouse size={20} />} label="Bodegas" />
-                        <SidebarLink href="/dashboard/shipments/new" icon={<PackageSearch size={20} />} label="Recibir Carga" />
-                        <SidebarLink href="/dashboard/fleet" icon={<Truck size={20} />} label="Flota / Vehículos" />
+                        {profile.role !== "MECHANIC" && (
+                            <>
+                                <SidebarLink href="/dashboard/warehouses" icon={<Warehouse size={20} />} label="Bodegas" />
+                                <SidebarLink href="/dashboard/shipments/new" icon={<PackageSearch size={20} />} label="Recibir Carga" />
+                                <SidebarLink href="/dashboard/fleet" icon={<Truck size={20} />} label="Flota / Vehículos" />
 
-                        <div className="pt-4 pb-2 px-4">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Configuración Base</p>
-                        </div>
-                        <SidebarLink href="/dashboard/settings/ai" icon={<BrainCircuit size={20} />} label="Asistente IA" />
-                        <SidebarLink href="/dashboard/stations" icon={<LayoutDashboard size={20} />} label="Estaciones de Servicio" />
-                        <SidebarLink href="/dashboard/team" icon={<Users size={20} />} label="Equipo de trabajo" />
+                                <div className="pt-4 pb-2 px-4">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Configuración Base</p>
+                                </div>
+                                <SidebarLink href="/dashboard/settings/ai" icon={<BrainCircuit size={20} />} label="Asistente IA" />
+                                <SidebarLink href="/dashboard/stations" icon={<LayoutDashboard size={20} />} label="Estaciones de Servicio" />
+                                <SidebarLink href="/dashboard/team" icon={<Users size={20} />} label="Equipo de trabajo" />
+                            </>
+                        )}
                     </nav>
                 </div>
 
                 <div className="mt-auto p-6 space-y-4">
-                    <SidebarLink href="/dashboard/settings" icon={<Settings size={20} />} label="Configuración" />
+                    {profile.role === "COMPANY_ADMIN" && (
+                        <SidebarLink href="/dashboard/settings" icon={<Settings size={20} />} label="Configuración" />
+                    )}
 
                     {/* Perfil Mini */}
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5">

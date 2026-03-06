@@ -10,9 +10,10 @@ import {
     Wrench, Tag
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { createManualInsumo } from "./actions";
 import { useTransition } from "react";
+import { createManualInsumo } from "./actions";
 import { PendingTransfersInbox } from "./PendingTransfersInbox";
+import { SentTransfersAlert } from "./SentTransfersAlert";
 import { TransferInitiationModal } from "./TransferInitiationModal";
 
 interface InventoryItem {
@@ -47,13 +48,15 @@ export function InventoryClient({
     initialTools = [],
     warehouses,
     initialWarehouseId = "all",
-    pendingTransfers = []
+    incomingTransfers = [],
+    outgoingTransfers = []
 }: {
     initialItems: InventoryItem[],
     initialTools?: ToolItem[],
     warehouses: Warehouse[],
     initialWarehouseId?: string,
-    pendingTransfers?: any[]
+    incomingTransfers?: any[],
+    outgoingTransfers?: any[]
 }) {
     const [itemType, setItemType] = useState<"CONSUMABLE" | "TOOL">("CONSUMABLE");
     const [viewMode, setViewMode] = useState<"grid" | "list">("list");
@@ -224,8 +227,14 @@ export function InventoryClient({
                 </div>
             )}
 
-            {/* Bandeja de Traspasos Pendientes (Handshakes) */}
-            <PendingTransfersInbox transfers={pendingTransfers} />
+            {/* Bandejas de Traspasos Pendientes (Handshakes) */}
+            {(incomingTransfers && incomingTransfers.length > 0) && (
+                <PendingTransfersInbox transfers={incomingTransfers} />
+            )}
+
+            {(outgoingTransfers && outgoingTransfers.length > 0) && (
+                <SentTransfersAlert transfers={outgoingTransfers} />
+            )}
 
             {/* Toolbar Inteligente */}
             <div className="flex flex-col lg:flex-row gap-4">

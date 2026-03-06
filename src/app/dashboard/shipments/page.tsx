@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { getShipments } from "./actions";
-import { Package, Truck, Calendar, User, ChevronRight, Plus } from "lucide-react";
+import { Truck, Calendar, User, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";

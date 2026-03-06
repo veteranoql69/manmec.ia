@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, Tool, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI, Tool, SchemaType, Part } from "@google/generative-ai";
 import { generateSystemPrompt } from "./prompts";
 import { getInventoryStock, getWorkOrders, getServiceStations } from "./tools";
 
@@ -30,8 +30,8 @@ const tools: Tool[] = [
                         status: {
                             type: SchemaType.STRING,
                             description: "Estado de la OT",
-                            enum: ["PENDING", "ASSIGNED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED"]
-                        } as any
+                            nullable: true,
+                        }
                     }
                 }
             },
@@ -55,19 +55,21 @@ const tools: Tool[] = [
 export async function generateAiResponse(
     message: string,
     userContext: { organization_id: string; full_name: string; role: string },
-    orgSettings: any,
+    orgSettings: Record<string, unknown>,
     audioBuffer?: Buffer // Nuevo parámetro opcional para mensajes de voz
 ) {
     const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
-        systemInstruction: generateSystemPrompt(orgSettings),
+        model: "gemini-2.0-flash", // Actualizado a la versión estable 2.0
+        systemInstruction: generateSystemPrompt(orgSettings), // Ya no requiere cast tras actualizar prompts.ts
         tools,
     });
 
     const chat = model.startChat();
 
     // Preparar el contenido del mensaje (texto o texto + audio)
-    const promptParts: any[] = [message || "Analiza este mensaje de voz y responde a la solicitud del usuario."];
+    const promptParts: (string | { inlineData: { data: string; mimeType: string } })[] = [
+        message || "Analiza este mensaje de voz y responde a la solicitud del usuario."
+    ];
 
     if (audioBuffer) {
         promptParts.push({
@@ -79,29 +81,30 @@ export async function generateAiResponse(
     }
 
     try {
-        let result = await chat.sendMessage(promptParts);
+        let result = await chat.sendMessage(promptParts as unknown as Part[]);
         let response = result.response;
 
         // Loop de manejo de llamadas a funciones (Function Calling)
-        // Gemini puede pedir ejecutar una función para obtener datos reales
         const call = response.functionCalls()?.[0];
 
         if (call) {
             const { name, args } = call;
-            let functionResult;
+            let functionResult: unknown;
 
             console.log(`[AI] Ejecutando herramienta: ${name}`, args);
 
             // Ejecución segura de las herramientas filtradas por organización
+            const typedArgs = args as Record<string, string>;
+
             switch (name) {
                 case "getInventoryStock":
-                    functionResult = await getInventoryStock(userContext.organization_id, (args as any).query);
+                    functionResult = await getInventoryStock(userContext.organization_id, typedArgs.query);
                     break;
                 case "getWorkOrders":
-                    functionResult = await getWorkOrders(userContext.organization_id, (args as any).status);
+                    functionResult = await getWorkOrders(userContext.organization_id, typedArgs.status);
                     break;
                 case "getServiceStations":
-                    functionResult = await getServiceStations(userContext.organization_id, (args as any).name_query);
+                    functionResult = await getServiceStations(userContext.organization_id, typedArgs.name_query);
                     break;
                 default:
                     throw new Error(`Herramienta no encontrada: ${name}`);
@@ -113,12 +116,12 @@ export async function generateAiResponse(
                     name,
                     response: { content: functionResult }
                 }
-            }]);
+            }] as unknown as Part[]);
             response = result.response;
         }
 
         return response.text();
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("[AI ERROR]", error);
         return "Lo siento, tuve un problema procesando tu solicitud. Por favor intenta de nuevo en unos momentos.";
     }

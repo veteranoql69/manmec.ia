@@ -191,13 +191,16 @@ export async function getWarehouseAuditData(warehouseId: string) {
 
     if (stockError) console.error("Error fetching warehouse stock:", stockError);
 
-    const items = stockItems?.map((s) => ({
-        id: (s.item as any).id,
-        name: (s.item as any).name,
-        sku: (s.item as any).sku,
-        unit: (s.item as any).unit,
-        current_stock: s.quantity
-    })) || [];
+    const items = (stockItems || []).map((s) => {
+        const item = s.item as unknown as { id: string; name: string; sku: string; unit: string } | null;
+        return {
+            id: item?.id || "",
+            name: item?.name || "Desconocido",
+            sku: item?.sku || "",
+            unit: item?.unit || "",
+            current_stock: s.quantity
+        };
+    });
 
     // 3. Obtener Herramientas Asignadas
     const { data: tools, error: tError } = await supabase
@@ -231,11 +234,15 @@ export async function getWarehouseAuditData(warehouseId: string) {
     if (mError) console.error("Error fetching recent movements:", mError);
 
     // Mapear los movimientos
-    const mappedMovements = movements?.map(m => ({
-        ...m,
-        item_name: (m.item as any)?.name || 'Desconocido',
-        user_name: (m.user as any)?.full_name || 'Sistema'
-    })) || [];
+    const mappedMovements = (movements || []).map(m => {
+        const item = m.item as unknown as { name: string } | null;
+        const user = m.user as unknown as { full_name: string } | null;
+        return {
+            ...m,
+            item_name: item?.name || 'Desconocido',
+            user_name: user?.full_name || 'Sistema'
+        };
+    });
 
     return {
         warehouse,

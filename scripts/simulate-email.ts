@@ -16,7 +16,7 @@ async function simulate() {
 
     console.log(`🚀 Iniciando simulación: ${scenario} (ID Dinámico Sugerido: ${randomId})`);
 
-    let payload: any = {
+    const payload: any = {
         from: 'mantenimiento@copec.cl',
         to: process.argv[4] && process.argv[4] !== "NONE" ? process.argv[4] : 'bodega@manmec.cl',
         subject: '',

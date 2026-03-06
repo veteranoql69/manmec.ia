@@ -57,7 +57,7 @@ export async function getServiceStations() {
         throw error;
     }
 
-    return data as ServiceStation[];
+    return (data || []) as ServiceStation[];
 }
 
 /**

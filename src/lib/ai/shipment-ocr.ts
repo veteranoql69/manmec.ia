@@ -69,8 +69,9 @@ export async function processDispatchNote(
 
     try {
         return JSON.parse(cleanJson) as OcrShipmentResult;
-    } catch (e) {
-        console.error("Error parseando JSON de Gemini:", text);
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Error desconocido";
+        console.error("Error parseando JSON de Gemini:", text, message);
         throw new Error("No se pudo procesar la guía de forma estructurada.");
     }
 }

@@ -4,7 +4,7 @@ import { OTListClient } from "@/components/dashboard/ots/OTListClient";
 import { ClipboardList } from "lucide-react";
 
 export default async function WorkOrdersPage() {
-    const profile = await requireRole("SUPERVISOR");
+    await requireRole("MECHANIC");
     const workOrders = await getWorkOrders();
 
     return (

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    Plus, Search, MapPin, Phone, User,
+    Plus, Search, MapPin, User,
     Edit2, Trash2, Power, Navigation,
     LayoutGrid, List, AlertCircle, Building2,
     ShieldCheck, ShieldAlert
@@ -429,7 +429,7 @@ export default function StationManagementClient({ initialStations }: { initialSt
                     <AlertCircle size={64} className="mx-auto mb-6 text-slate-800" strokeWidth={1} />
                     <h3 className="text-2xl font-black text-slate-500 uppercase tracking-tighter">Sin coincidencias exactas</h3>
                     <p className="text-slate-600 text-sm mt-2 max-w-md mx-auto font-medium lowercase">
-                        No hemos encontrado estaciones con el término <span className="text-blue-400 font-black">"{search}"</span>.
+                        No hemos encontrado estaciones con el término <span className="text-blue-400 font-black">&quot;{search}&quot;</span>.
                         Intenta buscando por código SAP, marca o comuna.
                     </p>
                 </div>
@@ -438,7 +438,6 @@ export default function StationManagementClient({ initialStations }: { initialSt
             {/* Modal de Gestión */}
             {isModalOpen && (
                 <StationModal
-                    isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
                     station={editingStation}
                     onSuccess={(newStation: ServiceStation) => {

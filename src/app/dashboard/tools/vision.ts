@@ -49,8 +49,9 @@ export async function analyzeToolImage(base64Image: string, mimeType: string) {
         const parsedData = JSON.parse(text);
 
         return { success: true, data: parsedData };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error analyzing image with Gemini:", error);
-        return { success: false, error: error.message || "Error procesando la imagen" };
+        const message = error instanceof Error ? error.message : "Error procesando la imagen";
+        return { success: false, error: message };
     }
 }

@@ -7,7 +7,7 @@ import { getVehicles } from "@/app/dashboard/fleet/actions";
 import { Wrench } from "lucide-react";
 
 export default async function ToolsPage() {
-    const profile = await requireRole("SUPERVISOR");
+    const profile = await requireRole("MECHANIC");
     const supabase = await createClient();
 
     const [tools, members, vehicles, { data: warehouses }] = await Promise.all([
@@ -33,7 +33,7 @@ export default async function ToolsPage() {
 
             <ToolsManagementClient
                 initialTools={tools}
-                members={members as any[]}
+                members={members as unknown as Array<{ id: string; full_name: string }>}
                 vehicles={vehicles}
                 warehouses={warehouses || []}
             />

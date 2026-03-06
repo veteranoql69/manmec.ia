@@ -38,7 +38,6 @@ export async function initiateTransfer(params: InitiateTransferParams) {
         }
 
         // 1. Obtener a quién le pertenece actualmente la bodega destino para notificarle
-        // Si es vehículo, buscar el asignado a ese vehículo (simplificado por ahora, se puede buscar en turnos activos)
         let receiverId = profile.id; // Fallback al mismo usuario si no encontramos dueño
         const { data: targetWarehouse, error: targetWHError } = await supabase
             .from("manmec_warehouses")
@@ -52,13 +51,42 @@ export async function initiateTransfer(params: InitiateTransferParams) {
         }
 
         if (targetWarehouse && targetWarehouse.type === "MOBILE" && targetWarehouse.vehicle_id) {
-            // Buscar el último OT activo de ese vehículo para ver quién lo maneja, o una tabla de asignación de furgón directo.
-            // Asumiremos por simplicidad un responsable general si existe, si no, lo dejamos genérico.
-            // idealmente: const { data: driver } = await supabase.from('...').eq('vehicle_id', targetWarehouse.vehicle_id)
+            // Buscar la OT activa del vehículo destino para notificar al mecánico asignado
+            const { data: targetActiveOt } = await supabase
+                .from("manmec_work_orders")
+                .select("assigned_to")
+                .eq("vehicle_id", targetWarehouse.vehicle_id)
+                .in("status", ["PENDING", "ASSIGNED", "IN_PROGRESS", "PAUSED"])
+                .limit(1)
+                .maybeSingle();
+
+            if (targetActiveOt?.assigned_to) {
+                receiverId = targetActiveOt.assigned_to;
+            }
         }
 
-        // TRANSACCIÓN DE DESCUENTO
+        // 2. Transacción de Insumos (Consumables)
         if (params.type === "CONSUMABLE") {
+            // Validar que si el origen es un vehículo, este tenga una OT activa.
+            const { data: fromWarehouse } = await supabase
+                .from("manmec_warehouses")
+                .select("vehicle_id, type")
+                .eq("id", params.fromWarehouseId)
+                .single();
+
+            if (fromWarehouse?.type === "MOBILE" && fromWarehouse.vehicle_id) {
+                const { data: sourceActiveOt } = await supabase
+                    .from("manmec_work_orders")
+                    .select("id")
+                    .eq("vehicle_id", fromWarehouse.vehicle_id)
+                    .in("status", ["PENDING", "ASSIGNED", "IN_PROGRESS", "PAUSED"])
+                    .limit(1)
+                    .maybeSingle();
+
+                if (!sourceActiveOt) {
+                    throw new Error("No puedes transferir insumos desde un vehículo sin una Orden de Trabajo activa.");
+                }
+            }
             // Verificar stock disponible
             const { data: currentStock, error: stockCheckError } = await supabase
                 .from("manmec_inventory_stock")
@@ -137,7 +165,7 @@ export async function initiateTransfer(params: InitiateTransferParams) {
 
         } else if (params.type === "TOOL") {
             // Crear handshake Tool
-            const { data: transfer, error: transferError } = await supabase
+            const { error: transferError } = await supabase
                 .from("manmec_inventory_transfers")
                 .insert({
                     organization_id: profile.organization_id,
@@ -148,9 +176,7 @@ export async function initiateTransfer(params: InitiateTransferParams) {
                     tool_id: params.toolId,
                     status: "PENDING",
                     notes: params.notes || "Préstamo de herramienta"
-                })
-                .select()
-                .single();
+                });
 
             if (transferError) throw new Error(transferError.message || JSON.stringify(transferError));
 
@@ -160,11 +186,11 @@ export async function initiateTransfer(params: InitiateTransferParams) {
 
         revalidatePath("/dashboard/inventory");
         return { success: true };
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error("Initiate Transfer Error", e);
         return {
             success: false,
-            error: e.message || "Error desconocido en la base de datos."
+            error: e instanceof Error ? e.message : "Error desconocido en la base de datos."
         };
     }
 }

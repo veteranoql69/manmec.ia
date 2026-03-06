@@ -9,7 +9,7 @@ export type OrganizationSettings = {
     name: string;
     client_notification_email: string | null;
     allowed_email_domains: string[];
-    settings: any;
+    settings: Record<string, unknown>;
 };
 
 /**

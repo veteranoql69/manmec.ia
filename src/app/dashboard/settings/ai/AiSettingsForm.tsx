@@ -5,7 +5,7 @@ import { saveAiSettings } from "./actions";
 import { generateSystemPrompt } from "@/lib/ai/prompts";
 
 interface AiSettingsFormProps {
-    initialSettings: Record<string, any>;
+    initialSettings: Record<string, unknown>;
     orgId: string;
 }
 
@@ -16,9 +16,9 @@ export function AiSettingsForm({ initialSettings, orgId }: AiSettingsFormProps) 
 
     // Estado para la previsualización en vivo
     const [settings, setSettings] = useState({
-        name: initialSettings?.name || "Asistente Manmec",
-        communication_style: initialSettings?.communication_style || "formal",
-        extra_instructions: initialSettings?.extra_instructions || ""
+        name: (initialSettings?.name as string) || "Asistente Manmec",
+        communication_style: (initialSettings?.communication_style as string) || "formal",
+        extra_instructions: (initialSettings?.extra_instructions as string) || ""
     });
 
     const currentPrompt = useMemo(() => generateSystemPrompt(settings), [settings]);
@@ -49,8 +49,9 @@ export function AiSettingsForm({ initialSettings, orgId }: AiSettingsFormProps) 
                 await saveAiSettings(orgId, formData);
                 setIsSaved(true);
                 setTimeout(() => setIsSaved(false), 3000);
-            } catch (err: any) {
-                setError(err.message);
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : "Error desconocido al guardar";
+                setError(message);
             }
         });
     };
@@ -109,7 +110,7 @@ export function AiSettingsForm({ initialSettings, orgId }: AiSettingsFormProps) 
                                 type="checkbox"
                                 name="voice_enabled"
                                 value="true"
-                                defaultChecked={initialSettings?.voice_enabled ?? true}
+                                defaultChecked={(initialSettings?.voice_enabled as boolean) ?? true}
                                 className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -160,7 +161,7 @@ export function AiSettingsForm({ initialSettings, orgId }: AiSettingsFormProps) 
                     </div>
                 </div>
                 <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest">
-                    Este es el "cerebro" que lee Gemini antes de responder en Web y Telegram
+                    Este es el &quot;cerebro&quot; que lee Gemini antes de responder en Web y Telegram
                 </p>
             </div>
 

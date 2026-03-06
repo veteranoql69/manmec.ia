@@ -30,7 +30,7 @@ export default async function AiSettingsPage() {
         .eq("id", profile.organization_id)
         .single();
 
-    const currentSettings = org?.ai_settings || {};
+    const currentSettings = (org?.ai_settings as Record<string, unknown>) || {};
 
     return (
         <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -45,7 +45,7 @@ export default async function AiSettingsPage() {
 
             <div className="bg-slate-900 overflow-hidden shadow-xl sm:rounded-2xl border border-white/5">
                 <div className="p-6 sm:p-8">
-                    <AiSettingsForm initialSettings={currentSettings as Record<string, any>} orgId={profile.organization_id} />
+                    <AiSettingsForm initialSettings={currentSettings} orgId={profile.organization_id} />
                 </div>
             </div>
         </div>

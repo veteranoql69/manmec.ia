@@ -15,11 +15,36 @@ export type Vehicle = {
     is_active: boolean;
 };
 
+export type Warehouse = {
+    id: string;
+    name: string;
+    is_active: boolean;
+};
+
+export type Tool = {
+    id: string;
+    name: string;
+    code: string | null;
+    status: string;
+    assigned_warehouse_id: string | null;
+};
+
+export type InventoryItem = {
+    id: string;
+    sku: string | null;
+    name: string;
+    description: string | null;
+    unit: string;
+    quantity: number;
+    stock_id: string;
+    last_counted_at: string;
+};
+
 /**
  * Obtiene todos los vehículos de la organización
  */
 export async function getVehicles() {
-    const profile = await requireRole("SUPERVISOR");
+    const profile = await requireRole("MECHANIC");
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -104,7 +129,7 @@ export async function getVehicleAuditData(vehicleId: string) {
     if (!vehicle) throw new Error("Vehicle not found");
 
     // 1.5 Obtener la Bodega Móvil ASOCIADA a este vehículo
-    const { data: warehouse, error: warehouseError } = await supabase
+    const { data: warehouse } = await supabase
         .from("manmec_warehouses")
         .select("id, name, is_active")
         .eq("vehicle_id", vehicleId)
@@ -117,7 +142,7 @@ export async function getVehicleAuditData(vehicleId: string) {
     const vehicleWithWarehouse = { ...vehicle, warehouse: warehouse || null };
 
     // 2. Obtener Herramientas en esa bodega
-    let tools: any[] = [];
+    let tools: Tool[] = [];
     if (warehouseId) {
         const { data: fetchedTools, error: toolsError } = await supabase
             .from("manmec_tools")
@@ -126,11 +151,11 @@ export async function getVehicleAuditData(vehicleId: string) {
             .is("deleted_at", null);
 
         if (toolsError) throw toolsError;
-        tools = fetchedTools || [];
+        tools = (fetchedTools || []) as Tool[];
     }
 
     // 3. Obtener Insumos en esa bodega
-    let items: any[] = [];
+    let items: InventoryItem[] = [];
     if (warehouseId) {
         const { data: fetchedStock, error: stockError } = await supabase
             .from("manmec_inventory_stock")
@@ -152,12 +177,24 @@ export async function getVehicleAuditData(vehicleId: string) {
         if (stockError) throw stockError;
 
         // Aplanar el objeto para el frontend
-        items = (fetchedStock || []).map((stock: any) => ({
-            ...stock.item,
-            stock_id: stock.id,
-            quantity: stock.quantity,
-            last_counted_at: stock.updated_at
-        }));
+        items = (fetchedStock || []).map((stock: unknown) => {
+            const s = stock as {
+                id: string;
+                quantity: number;
+                updated_at: string;
+                item: { id: string; sku: string | null; name: string; description: string | null; unit: string }
+            };
+            return {
+                id: s.item.id,
+                sku: s.item.sku,
+                name: s.item.name,
+                description: s.item.description,
+                unit: s.item.unit,
+                stock_id: s.id,
+                quantity: s.quantity,
+                last_counted_at: s.updated_at
+            };
+        });
     }
 
     // 4. Obtener Historial de OTs (Últimos 15 Días)
@@ -204,7 +241,7 @@ export async function getVehicleAuditData(vehicleId: string) {
         // Deduplicar mecánicos
         const uniqueCrewMap = new Map();
         assignments?.forEach(a => {
-            const mech: any = Array.isArray(a.mechanic) ? a.mechanic[0] : a.mechanic;
+            const mech = (Array.isArray(a.mechanic) ? a.mechanic[0] : a.mechanic) as { id: string; full_name: string } | null;
             if (mech && mech.id && !uniqueCrewMap.has(mech.id)) {
                 uniqueCrewMap.set(mech.id, mech);
             }

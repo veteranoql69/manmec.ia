@@ -9,12 +9,24 @@ import {
     Users,
     Clock,
     CheckCircle2,
-    AlertCircle,
     Package,
     ArrowRight
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+
+type WorkOrderHistory = {
+    id: string;
+    code: string | null;
+    title: string;
+    description: string | null;
+    status: string;
+    priority: string;
+    scheduled_date: string | null;
+    vehicle: { plate: string; brand: string | null; model: string | null } | null;
+    assignments: Array<{ id: string; mechanic: { full_name: string } }>;
+    materials: Array<{ id: string; quantity: number; item: { name: string; unit: string } }>;
+};
 
 export default async function StationDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -87,7 +99,7 @@ export default async function StationDetailPage({ params }: { params: Promise<{ 
 
                     <div className="space-y-4">
                         {station.work_orders?.length > 0 ? (
-                            station.work_orders.map((ot: any) => (
+                            station.work_orders.map((ot: WorkOrderHistory) => (
                                 <div
                                     key={ot.id}
                                     className="group relative bg-[#0f0f0f] border border-white/5 rounded-[2rem] overflow-hidden hover:border-blue-500/30 transition-all"
@@ -150,7 +162,7 @@ export default async function StationDetailPage({ params }: { params: Promise<{ 
                                                                 <Users className="w-2.5 h-2.5" /> Personal Técnico
                                                             </p>
                                                             <div className="flex flex-wrap gap-2">
-                                                                {ot.assignments?.map((as: any) => (
+                                                                {ot.assignments?.map((as) => (
                                                                     <div key={as.id} className="bg-white/5 rounded-lg px-2 py-1 border border-white/5 flex items-center gap-2">
                                                                         <div className="w-1.5 h-1.5 rounded-full bg-blue-500/50" />
                                                                         <span className="text-[9px] font-bold text-slate-300 uppercase">{as.mechanic.full_name}</span>
@@ -169,7 +181,7 @@ export default async function StationDetailPage({ params }: { params: Promise<{ 
                                                             <Package className="w-2.5 h-2.5" /> Materiales e Insumos
                                                         </p>
                                                         <div className="space-y-1.5">
-                                                            {ot.materials?.map((mat: any) => (
+                                                            {ot.materials?.map((mat) => (
                                                                 <div key={mat.id} className="flex justify-between items-center text-[10px] font-medium bg-white/5 px-3 py-2 rounded-lg border border-white/5">
                                                                     <span className="text-slate-300 uppercase">{mat.item.name}</span>
                                                                     <span className="text-blue-400 font-black">{mat.quantity} {mat.item.unit}</span>
@@ -215,7 +227,7 @@ export default async function StationDetailPage({ params }: { params: Promise<{ 
                                 <div>
                                     <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest">Materiales Consumidos</p>
                                     <p className="text-4xl font-black text-white italic">
-                                        {station.work_orders?.reduce((acc: number, ot: any) => acc + (ot.materials?.length || 0), 0)}
+                                        {station.work_orders?.reduce((acc: number, ot: WorkOrderHistory) => acc + (ot.materials?.length || 0), 0)}
                                     </p>
                                 </div>
                                 <Package className="w-8 h-8 text-white/20" />

@@ -69,7 +69,7 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
     ];
 
     const filteredAndSortedOps = useMemo(() => {
-        let result = currentOps.filter(op =>
+        const result = currentOps.filter(op =>
             op.mechanicName.toLowerCase().includes(search.toLowerCase()) ||
             op.ot.toLowerCase().includes(search.toLowerCase()) ||
             op.vehicle.toLowerCase().includes(search.toLowerCase())

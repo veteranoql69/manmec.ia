@@ -5,10 +5,8 @@ import { MobileWarehouseTabs } from "@/components/dashboard/MobileWarehouseTabs"
 import {
     ChevronLeft,
     MapPin,
-    Truck,
     Clock,
     User,
-    AlertTriangle,
     CheckCircle2,
     Package,
     Phone,
@@ -19,25 +17,48 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChronologyTimeline } from "@/components/dashboard/ChronologyTimeline";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
+interface TeamMember {
+    role: string;
+    mechanic: {
+        id: string;
+        full_name: string;
+    };
+}
+
+interface MaterialUsage {
+    item: {
+        sku: string;
+        name: string;
+        unit: string;
+    };
+    quantity: number;
+    notes: string | null;
+}
+
+interface AiComponentMatch {
+    nombre: string;
+    cantidad: number;
+    codigo: string | null;
+}
+
 interface PageProps {
-    params: { id: string };
+    params: Promise<{ id: string }>;
 }
 
 export default async function OTDetailPage({ params }: PageProps) {
     const { id } = await params;
-    await requireRole("SUPERVISOR");
+    await requireRole("MECHANIC");
 
     let ot, resources;
     try {
         [ot, resources] = await Promise.all([
-            getWorkOrderDetail(id),
+            getWorkOrderDetail(id) as Promise<any>,
             getAvailableResources()
         ]);
-    } catch (e) {
+    } catch {
         return notFound();
     }
 
@@ -113,7 +134,7 @@ export default async function OTDetailPage({ params }: PageProps) {
 
                         <div className="p-6 bg-black/40 border border-white/5 rounded-3xl mb-8">
                             <p className="text-slate-300 leading-relaxed italic text-lg whitespace-pre-line">
-                                "{ot.description || "Sin descripción adicional proporcionada."}"
+                                &quot;{ot.description || "Sin descripción adicional proporcionada."}&quot;
                             </p>
                         </div>
 
@@ -154,9 +175,9 @@ export default async function OTDetailPage({ params }: PageProps) {
                             </div>
 
                             {/* Equipo de Apoyo */}
-                            {ot.team
-                                ?.filter((m: any) => m.role === 'support' && m.mechanic.id !== ot.assigned_to)
-                                .map((m: any, idx: number) => (
+                            {(ot.team as TeamMember[] | undefined)
+                                ?.filter((m) => m.role === 'support' && m.mechanic.id !== ot.assigned_to)
+                                .map((m, idx: number) => (
                                     <div key={idx} className="flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-[2rem] hover:bg-white/10 transition-colors">
                                         <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center font-bold text-blue-400 border border-blue-500/20">
                                             {m.mechanic.full_name.charAt(0)}
@@ -168,7 +189,7 @@ export default async function OTDetailPage({ params }: PageProps) {
                                     </div>
                                 ))}
 
-                            {(!ot.team || ot.team.filter((m: any) => m.role === 'support' && m.mechanic.id !== ot.assigned_to).length === 0) && (
+                            {(!ot.team || (ot.team as TeamMember[]).filter((m) => m.role === 'support' && m.mechanic.id !== ot.assigned_to).length === 0) && (
                                 <div className="p-8 border border-dashed border-white/10 rounded-[2rem] text-center md:col-span-2 bg-white/[0.02]">
                                     <p className="text-xs text-slate-500 font-medium italic">No se han registrado técnicos de apoyo adicionales.</p>
                                 </div>
@@ -189,7 +210,7 @@ export default async function OTDetailPage({ params }: PageProps) {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {ot.materials && ot.materials.length > 0 ? (
-                                ot.materials.map((mat: any, idx: number) => (
+                                (ot.materials as MaterialUsage[]).map((mat, idx: number) => (
                                     <div key={idx} className="flex items-center gap-5 p-6 bg-black/40 border border-white/5 rounded-[2.5rem] hover:border-emerald-500/30 transition-all group">
                                         <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
                                             <Package className="w-6 h-6 text-emerald-400" />
@@ -274,7 +295,7 @@ export default async function OTDetailPage({ params }: PageProps) {
                                 <Activity className="text-blue-400 w-5 h-5" /> Análisis IA Histórico
                             </h3>
                             <div className="space-y-3">
-                                {ot.metadata.repuestos.map((rep: any, idx: number) => (
+                                {(ot.metadata.repuestos as AiComponentMatch[]).map((rep, idx: number) => (
                                     <div key={idx} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl">
                                         <div>
                                             <p className="text-sm font-bold text-blue-100">{rep.nombre}</p>

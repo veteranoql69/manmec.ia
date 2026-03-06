@@ -74,7 +74,7 @@ const OnboardingSchema = z.object({
         .string()
         .min(8, "El teléfono es requerido"),
     role: z
-        .enum(["MANAGER", "SUPERVISOR", "MECHANIC"], {
+        .enum(["COMPANY_ADMIN", "MANAGER", "SUPERVISOR", "MECHANIC"], {
             message: "Selecciona un rol válido"
         }),
     hasOrg: z.string().optional(),
@@ -123,6 +123,7 @@ export async function completeOnboarding(
 
     const { org_name, org_rut, org_domain, phone, role, hasOrg } = parsed.data;
     const isNewOrg = hasOrg !== "true";
+    const finalRole = isNewOrg ? role : "MECHANIC";
 
     // Cliente admin para bypassar RLS
     const admin = createAdminClient(
@@ -182,7 +183,7 @@ export async function completeOnboarding(
     // Notice: Prisma user roles enum: COMPANY_ADMIN, MANAGER, SUPERVISOR, MECHANIC
     const { error: updateError } = await admin.from("manmec_users").update({
         phone: phone,
-        role: role,
+        role: finalRole,
         onboarding_status: "pending" // Let's keep it pending until Telegram is linked or simply override it
     }).eq("id", user.id);
 
