@@ -23,10 +23,15 @@ export async function POST(req: NextRequest) {
 
         const chatId = message.chat.id.toString();
 
-        const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+        if (!supabaseUrl || !supabaseServiceKey) {
+            console.warn('[TELEGRAM WEBHOOK] Skipping processing: Supabase env vars missing (Build time?)');
+            return NextResponse.json({ ok: true });
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
         // 1. Manejo Comando /start token_xxx
         if (message.text && message.text.startsWith('/start')) {
