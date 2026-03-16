@@ -5,3 +5,15 @@ node_modules
 *.md
 scripts
 prisma/migrations
+*.log
+*.ts
+*.js
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!next.config.ts
+!components.json
+!postcss.config.mjs
+!eslint.config.mjs
+!prisma.config.ts
