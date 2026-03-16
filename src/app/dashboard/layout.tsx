@@ -14,6 +14,7 @@ import {
     Warehouse
 } from "lucide-react";
 import AiChatWidget from "@/components/dashboard/AiChatWidget";
+import MobileNavbar from "@/components/dashboard/MobileNavbar";
 
 export default async function DashboardLayout({
     children,
@@ -24,14 +25,14 @@ export default async function DashboardLayout({
 
     return (
         <div className="flex min-h-screen bg-[#050505] text-slate-200">
-            {/* Sidebar */}
+            {/* Sidebar (Desktop Only) */}
             <aside className="w-64 border-r border-white/5 bg-black/20 backdrop-blur-xl hidden md:flex flex-col sticky top-0 h-screen">
                 <div className="p-6">
                     <div className="flex items-center gap-2 mb-8">
                         <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
                             <BrainCircuit className="w-5 h-5 text-white" />
                         </div>
-                        <span className="font-bold text-xl tracking-tight">Manmec <span className="text-blue-500 text-xs">IA</span></span>
+                        <span className="font-bold text-xl tracking-tight text-white">Manmec <span className="text-blue-500 text-xs text-blue-500">IA</span></span>
                     </div>
 
                     <nav className="space-y-1">
@@ -68,7 +69,9 @@ export default async function DashboardLayout({
 
                     {/* Perfil Mini */}
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5">
-                        <div className="w-8 h-8 rounded-full bg-slate-700" />
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-700 to-slate-800 flex items-center justify-center text-[10px] font-black">
+                            {profile.full_name?.charAt(0)}
+                        </div>
                         <div className="flex-1 overflow-hidden">
                             <p className="text-xs font-bold truncate">{profile.full_name}</p>
                             <p className="text-[10px] text-slate-500 uppercase font-mono">{profile.role}</p>
@@ -80,21 +83,12 @@ export default async function DashboardLayout({
                 </div>
             </aside>
 
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col">
-                {/* Mobile Header (Hidden on Desktop) */}
-                <header className="md:hidden p-4 border-b border-white/5 flex justify-between items-center bg-black/40 backdrop-blur-md sticky top-0 z-50">
-                    <div className="flex items-center gap-2">
-                        <BrainCircuit className="w-6 h-6 text-blue-500" />
-                        <span className="font-bold">Manmec IA</span>
-                    </div>
-                    {/* Hamburger placeholder */}
-                    <button className="p-2 text-slate-400">
-                        <Settings size={20} />
-                    </button>
-                </header>
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col min-w-0">
+                {/* Navigation Móvil */}
+                <MobileNavbar profile={profile} />
 
-                <main className="flex-1">
+                <main className="flex-1 p-4 md:p-8">
                     {children}
                 </main>
             </div>

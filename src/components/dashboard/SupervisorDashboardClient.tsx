@@ -146,114 +146,104 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto min-h-[300px]">
-                            <table className="w-full text-left">
-                                <thead className="bg-white/[0.02] text-slate-500 text-[10px] uppercase tracking-widest font-black">
-                                    <tr>
-                                        <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("mechanicName")}>
-                                            <div className="flex items-center gap-2">Mecánico <SortIcon colKey="mechanicName" /></div>
-                                        </th>
-                                        <th className="px-6 py-4">Vehículo</th>
-                                        <th className="px-6 py-4 text-slate-500 text-[10px] uppercase font-black tracking-widest cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("externalId")}>
-                                            <div className="flex items-center gap-2">Aviso / Orden <SortIcon colKey="externalId" /></div>
-                                        </th>
-                                        <th className="px-6 py-4 text-slate-500 text-[10px] uppercase font-black tracking-widest">
-                                            Estación
-                                        </th>
-                                        <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("createdAt")}>
-                                            <div className="flex items-center gap-2">Llegada <SortIcon colKey="createdAt" /></div>
-                                        </th>
-                                        <th className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("status")}>
-                                            <div className="flex items-center gap-2 justify-end">Estado <SortIcon colKey="status" /></div>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {filteredAndSortedOps.slice(0, visibleOps).map((op, i) => {
-                                        const isPreventive = op.otType === "PREVENTIVE";
-                                        const rowClass = isPreventive
-                                            ? "border-l-2 border-l-indigo-500/70 hover:bg-indigo-500/[0.04] transition-colors group"
-                                            : "border-l-2 border-l-orange-500/70 hover:bg-orange-500/[0.04] transition-colors group";
-                                        return (
-                                        <tr key={i} className={rowClass}>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-[10px] font-black ${op.mechanicName === 'POR ASIGNAR' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-blue-500/20 border-blue-500/20 text-blue-400'}`}>
-                                                        {op.mechanicName.charAt(0)}
-                                                    </div>
-                                                    <span className={`font-bold ${op.mechanicName === 'POR ASIGNAR' ? 'text-amber-400 italic' : 'text-slate-200'}`}>
-                                                        {op.mechanicName}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 font-mono text-xs text-slate-400">{op.vehicle}</td>
-                                            {/* Aviso / Orden como hipervínculo azul (dato de terreno) */}
-                                            <td className="px-6 py-4">
-                                                {op.externalId ? (
-                                                    <Link
-                                                        href={`/dashboard/ots/${op.id}`}
-                                                        target="_blank"
-                                                        className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors group/link"
-                                                    >
-                                                        <span className="text-sm font-mono font-black tracking-tighter decoration-blue-400/30 underline-offset-4 group-hover/link:underline">
-                                                            {op.externalId}
-                                                        </span>
-                                                        <ExternalLink className="w-3 h-3 transition-transform group-hover/link:-translate-y-0.5" />
-                                                    </Link>
-                                                ) : (
-                                                    <Link
-                                                        href={`/dashboard/ots/${op.id}`}
-                                                        target="_blank"
-                                                        className="flex items-center gap-2 text-slate-500 hover:text-blue-400 transition-colors group/link"
-                                                    >
-                                                        <span className="text-xs font-mono italic">
-                                                            Sin Aviso
-                                                        </span>
-                                                        <ExternalLink className="w-3 h-3 opacity-50 transition-transform group-hover/link:-translate-y-0.5" />
-                                                    </Link>
-                                                )}
-                                            </td>
-                                            {/* Estación de Servicio */}
-                                            <td className="px-6 py-4">
-                                                {op.stationCode ? (
-                                                    <span className="text-[11px] font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">
-                                                        EDS {op.stationCode}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[11px] font-mono text-slate-600">—</span>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-col">
-                                                    <span className="text-xs font-black text-slate-300">
-                                                        {mounted ? new Date(op.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "--:--"}
-                                                    </span>
-                                                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
-                                                        {mounted ? new Date(op.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }) : "---"}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${op.status === "WORKING" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :
-                                                    op.status === "TRANSIT" ? "bg-blue-500/10 border-blue-500/20 text-blue-400" :
-                                                        "bg-slate-500/10 border-slate-500/20 text-slate-400"
-                                                    }`}>
-                                                    {op.status === "WORKING" ? "Trabajando" : op.status === "TRANSIT" ? "En Ruta" : op.status}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                        );
-                                    })}
-                                    {filteredAndSortedOps.length === 0 && (
+                        <div className="min-h-[300px]">
+                            {/* Desktop Table View */}
+                            <div className="hidden md:block overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-white/[0.02] text-slate-500 text-[10px] uppercase tracking-widest font-black">
                                         <tr>
-                                            <td colSpan={6} className="py-20 text-center text-slate-600 font-medium">
-                                                No se encontraron coincidencias en terreno.
-                                            </td>
+                                            <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("mechanicName")}>
+                                                <div className="flex items-center gap-2">Mecánico <SortIcon colKey="mechanicName" /></div>
+                                            </th>
+                                            <th className="px-6 py-4 font-black">Vehículo</th>
+                                            <th className="px-6 py-4 text-slate-500 text-[10px] uppercase font-black tracking-widest cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("externalId")}>
+                                                <div className="flex items-center gap-2">Aviso / Orden <SortIcon colKey="externalId" /></div>
+                                            </th>
+                                            <th className="px-6 py-4 text-slate-500 text-[10px] uppercase font-black tracking-widest">Estación</th>
+                                            <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("createdAt")}>
+                                                <div className="flex items-center gap-2">Llegada <SortIcon colKey="createdAt" /></div>
+                                            </th>
+                                            <th className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("status")}>
+                                                <div className="flex items-center gap-2 justify-end">Estado <SortIcon colKey="status" /></div>
+                                            </th>
                                         </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {filteredAndSortedOps.slice(0, visibleOps).map((op, i) => (
+                                            <tr key={i} className={`hover:bg-white/[0.02] transition-all border-l-2 ${op.otType === "PREVENTIVE" ? "border-l-indigo-500/50" : "border-l-orange-500/50"}`}>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${op.mechanicName === 'POR ASIGNAR' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                                                            {op.mechanicName.charAt(0)}
+                                                        </div>
+                                                        <span className={`text-sm font-bold ${op.mechanicName === 'POR ASIGNAR' ? 'text-amber-500 italic' : 'text-slate-200'}`}>
+                                                            {op.mechanicName}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 font-mono text-xs text-slate-400 tracking-tighter">{op.vehicle}</td>
+                                                <td className="px-6 py-4">
+                                                    <Link href={`/dashboard/ots/${op.id}`} className="flex items-center gap-2 text-blue-400 hover:text-blue-300 font-mono text-sm font-black">
+                                                        {op.externalId || "Sin Aviso"} <ExternalLink size={12} />
+                                                    </Link>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">EDS {op.stationCode || "S/D"}</span>
+                                                </td>
+                                                <td className="px-6 py-4 text-xs font-bold text-slate-400">
+                                                    {mounted ? new Date(op.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "--:--"}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${op.status === "WORKING" ? "bg-emerald-500/10 text-emerald-400" : "bg-blue-500/10 text-blue-400"}`}>
+                                                        {op.status === "WORKING" ? "Trabajando" : "En Ruta"}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Mobile Cards View */}
+                            <div className="md:hidden divide-y divide-white/5">
+                                {filteredAndSortedOps.slice(0, visibleOps).map((op, i) => (
+                                    <motion.div 
+                                        key={i}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className={`p-4 space-y-4 border-l-4 ${op.otType === "PREVENTIVE" ? "border-l-indigo-500/50" : "border-l-orange-500/50"}`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${op.mechanicName === 'POR ASIGNAR' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                                                    {op.mechanicName.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <p className={`text-sm font-black ${op.mechanicName === 'POR ASIGNAR' ? 'text-amber-500' : 'text-white'}`}>
+                                                        {op.mechanicName}
+                                                    </p>
+                                                    <p className="text-[10px] font-mono text-slate-500">{op.vehicle}</p>
+                                                </div>
+                                            </div>
+                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${op.status === "WORKING" ? "bg-emerald-500/10 text-emerald-400" : "bg-blue-500/10 text-blue-400"}`}>
+                                                {op.status === "WORKING" ? "Trabajando" : "En Ruta"}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center justify-between bg-white/[0.02] p-3 rounded-xl border border-white/5">
+                                            <Link href={`/dashboard/ots/${op.id}`} className="flex items-center gap-2 text-blue-400 font-mono text-xs font-black">
+                                                OT- {op.externalId || "Sin ID"} <ExternalLink size={10} />
+                                            </Link>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black text-emerald-400">EDS {op.stationCode || "S/D"}</p>
+                                                <p className="text-[9px] text-slate-500 font-bold">Llegada: {mounted ? new Date(op.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "--:--"}</p>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
                         </div>
+
 
                         {filteredAndSortedOps.length > visibleOps && (
                             <div className="p-4 border-t border-white/5 text-center">
