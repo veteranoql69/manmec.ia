@@ -27,6 +27,9 @@ interface OpsItem {
     mechanicName: string;
     vehicle: string;
     ot: string;
+    externalId: string | null;
+    stationCode: string | null;
+    otType: string;
     status: string;
     createdAt: string;
     updatedAt: string;
@@ -71,8 +74,9 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
     const filteredAndSortedOps = useMemo(() => {
         const result = currentOps.filter(op =>
             op.mechanicName.toLowerCase().includes(search.toLowerCase()) ||
-            op.ot.toLowerCase().includes(search.toLowerCase()) ||
-            op.vehicle.toLowerCase().includes(search.toLowerCase())
+            op.vehicle.toLowerCase().includes(search.toLowerCase()) ||
+            (op.externalId || "").toLowerCase().includes(search.toLowerCase()) ||
+            (op.stationCode || "").toLowerCase().includes(search.toLowerCase())
         );
 
         result.sort((a, b) => {
@@ -161,8 +165,11 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                             <div className="flex items-center gap-2">Mecánico <SortIcon colKey="mechanicName" /></div>
                                         </th>
                                         <th className="px-6 py-4">Vehículo</th>
-                                        <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("ot")}>
-                                            <div className="flex items-center gap-2">OT Asignada <SortIcon colKey="ot" /></div>
+                                        <th className="px-6 py-4 text-slate-500 text-[10px] uppercase font-black tracking-widest cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("externalId")}>
+                                            <div className="flex items-center gap-2">Aviso / Orden <SortIcon colKey="externalId" /></div>
+                                        </th>
+                                        <th className="px-6 py-4 text-slate-500 text-[10px] uppercase font-black tracking-widest">
+                                            Estación
                                         </th>
                                         <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("createdAt")}>
                                             <div className="flex items-center gap-2">Llegada <SortIcon colKey="createdAt" /></div>
@@ -173,8 +180,13 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
-                                    {filteredAndSortedOps.slice(0, visibleOps).map((op, i) => (
-                                        <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
+                                    {filteredAndSortedOps.slice(0, visibleOps).map((op, i) => {
+                                        const isPreventive = op.otType === "PREVENTIVE";
+                                        const rowClass = isPreventive
+                                            ? "border-l-2 border-l-indigo-500/70 hover:bg-indigo-500/[0.04] transition-colors group"
+                                            : "border-l-2 border-l-orange-500/70 hover:bg-orange-500/[0.04] transition-colors group";
+                                        return (
+                                        <tr key={i} className={rowClass}>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-[10px] font-black ${op.mechanicName === 'POR ASIGNAR' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-blue-500/20 border-blue-500/20 text-blue-400'}`}>
@@ -186,17 +198,41 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 font-mono text-xs text-slate-400">{op.vehicle}</td>
+                                            {/* Aviso / Orden como hipervínculo azul (dato de terreno) */}
                                             <td className="px-6 py-4">
-                                                <Link
-                                                    href={`/dashboard/ots/${op.id}`}
-                                                    target="_blank"
-                                                    className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors group/link"
-                                                >
-                                                    <span className="text-sm font-mono font-black tracking-tighter decoration-blue-400/30 underline-offset-4 group-hover/link:underline">
-                                                        {op.ot.slice(0, 8)}
+                                                {op.externalId ? (
+                                                    <Link
+                                                        href={`/dashboard/ots/${op.id}`}
+                                                        target="_blank"
+                                                        className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors group/link"
+                                                    >
+                                                        <span className="text-sm font-mono font-black tracking-tighter decoration-blue-400/30 underline-offset-4 group-hover/link:underline">
+                                                            {op.externalId}
+                                                        </span>
+                                                        <ExternalLink className="w-3 h-3 transition-transform group-hover/link:-translate-y-0.5" />
+                                                    </Link>
+                                                ) : (
+                                                    <Link
+                                                        href={`/dashboard/ots/${op.id}`}
+                                                        target="_blank"
+                                                        className="flex items-center gap-2 text-slate-500 hover:text-blue-400 transition-colors group/link"
+                                                    >
+                                                        <span className="text-xs font-mono italic">
+                                                            Sin Aviso
+                                                        </span>
+                                                        <ExternalLink className="w-3 h-3 opacity-50 transition-transform group-hover/link:-translate-y-0.5" />
+                                                    </Link>
+                                                )}
+                                            </td>
+                                            {/* Estación de Servicio */}
+                                            <td className="px-6 py-4">
+                                                {op.stationCode ? (
+                                                    <span className="text-[11px] font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">
+                                                        EDS {op.stationCode}
                                                     </span>
-                                                    <ExternalLink className="w-3 h-3 transition-transform group-hover/link:-translate-y-0.5" />
-                                                </Link>
+                                                ) : (
+                                                    <span className="text-[11px] font-mono text-slate-600">—</span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col">
@@ -217,10 +253,11 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                                 </span>
                                             </td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                     {filteredAndSortedOps.length === 0 && (
                                         <tr>
-                                            <td colSpan={4} className="py-20 text-center text-slate-600 font-medium">
+                                            <td colSpan={6} className="py-20 text-center text-slate-600 font-medium">
                                                 No se encontraron coincidencias en terreno.
                                             </td>
                                         </tr>

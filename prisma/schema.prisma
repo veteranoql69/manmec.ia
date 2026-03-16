@@ -29,6 +29,8 @@ enum ManmecOtPriority {
   P1
   P2
   P3
+  P4
+  PM
 
   @@map("manmec_ot_priority")
 }
@@ -262,6 +264,7 @@ model ManmecWorkOrder {
   completed_at             DateTime?        @db.Timestamptz(6)
   source                   String           @default("manual")
   external_id              String?
+  sap_order_id             String?
   external_source          String?
   metadata                 Json?            @default("{}")
   created_at               DateTime         @default(now()) @db.Timestamptz(6)

@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type WorkOrderStatus = string; // Being more flexible for build stability as status values vary
-export type WorkOrderPriority = 'P1' | 'P2' | 'P3';
+export type WorkOrderPriority = 'P1' | 'P2' | 'P3' | 'P4' | 'PM';
 
 export interface WorkOrder {
     id: string;
@@ -20,15 +20,19 @@ export interface WorkOrder {
     status: WorkOrderStatus;
     priority: WorkOrderPriority;
     ot_type: string;
+    external_id: string | null;
+    external_source: string | null;
+    metadata: any | null;
     scheduled_date: string | null;
     started_at: string | null;
     completed_at: string | null;
     created_at: string;
     updated_at: string;
     deleted_at: string | null;
-    station?: { name: string; code: string; address: string | null; contact_name: string | null; contact_phone: string | null };
+    station?: { id: string; name: string; code: string; sap_store_code: string | null; address: string | null; contact_name: string | null; contact_phone: string | null; manager_name?: string | null; manager_phone?: string | null };
     assigned_user?: { full_name: string } | null;
     vehicle?: { id: string, plate: string, brand: string | null, model: string | null } | null;
+    materials?: Array<{ quantity: number; item: { name: string; sku: string; unit: string } }>;
 }
 
 /**
@@ -42,9 +46,13 @@ export async function getWorkOrders() {
         .from("manmec_work_orders")
         .select(`
             *,
-            station:manmec_service_stations(name, code),
+            station:manmec_service_stations(name, code, sap_store_code),
             assigned_user:manmec_users!assigned_to(full_name),
-            vehicle:manmec_vehicles(plate)
+            vehicle:manmec_vehicles(plate),
+            materials:manmec_work_order_materials(
+                quantity,
+                item:manmec_inventory_items(name, sku, unit)
+            )
         `)
         .eq("organization_id", profile.organization_id)
         .is("deleted_at", null)
@@ -88,7 +96,7 @@ export async function getWorkOrderDetail(id: string) {
         .from("manmec_work_orders")
         .select(`
             *,
-            station:manmec_service_stations!station_id(name, code, address, contact_name, contact_phone),
+            station:manmec_service_stations!station_id(id, name, code, sap_store_code, address, contact_name, contact_phone, manager_name, manager_phone),
             assigned_user:manmec_users!assigned_to(full_name),
             vehicle:manmec_vehicles!vehicle_id(id, plate, brand, model)
         `)

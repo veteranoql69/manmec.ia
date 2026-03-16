@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from "@supabase/supabase-js";
 import { generateAiResponse } from '@/lib/ai/gemini';
 
+export const dynamic = 'force-dynamic';
+
 // Normalize phone numbers to make them comparable
 function normalizePhone(phone: string | null | undefined): string {
     if (!phone) return "";

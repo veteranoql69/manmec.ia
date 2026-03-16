@@ -102,8 +102,11 @@ export async function getCurrentOperations() {
             status,
             created_at,
             updated_at,
+            external_id,
+            ot_type,
             assigned_user:assigned_to(full_name),
-            vehicle:vehicle_id(plate)
+            vehicle:vehicle_id(plate),
+            station:station_id(code)
         `)
         .eq("organization_id", profile.organization_id)
         .not("status", "in", '("COMPLETED","CANCELLED")')
@@ -117,11 +120,15 @@ export async function getCurrentOperations() {
     return workOrders.map(wo => {
         const assignedUser = wo.assigned_user as unknown as { full_name: string } | null;
         const vehicle = wo.vehicle as unknown as { plate: string } | null;
+        const station = wo.station as unknown as { code: string } | null;
         return {
             id: wo.id,
             mechanicName: assignedUser?.full_name || "POR ASIGNAR",
             vehicle: vehicle?.plate || "N/A",
             ot: wo.id,
+            externalId: wo.external_id,
+            stationCode: station?.code || null,
+            otType: (wo.ot_type as string) || "CORRECTIVE",
             status: wo.status,
             createdAt: wo.created_at,
             updatedAt: wo.updated_at
@@ -143,8 +150,8 @@ export async function getRecentChronology() {
             content,
             created_at,
             entry_type,
-            user:user_id(full_name),
-            work_order:work_order_id(id)
+            user:manmec_users!user_id(full_name),
+            work_order:manmec_work_orders!work_order_id(id, external_id, status)
         `)
         .order("created_at", { ascending: false })
         .limit(30);
@@ -154,18 +161,12 @@ export async function getRecentChronology() {
         return [];
     }
 
-    const timelineData = (data || []) as Array<{
-        id: string;
-        content: string | null;
-        created_at: string;
-        entry_type: string;
-        user: unknown;
-        work_order: unknown;
-    }>;
+    const timelineData = (data || []) as any[];
 
     return timelineData.map(entry => {
-        const userProfile = Array.isArray(entry.user) ? entry.user[0] : (entry.user as { full_name: string } | null);
-        const workOrder = Array.isArray(entry.work_order) ? entry.work_order[0] : (entry.work_order as { id: string } | null);
+        // Manejar el caso de que sea un objeto o un array de un solo elemento (común en select de Supabase con inner join)
+        const userProfile = Array.isArray(entry.user) ? entry.user[0] : entry.user;
+        const workOrder = Array.isArray(entry.work_order) ? entry.work_order[0] : entry.work_order;
 
         return {
             id: entry.id,
@@ -173,7 +174,8 @@ export async function getRecentChronology() {
             timestamp: entry.created_at,
             type: entry.entry_type,
             userName: userProfile?.full_name || "Sistema",
-            otId: workOrder?.id?.slice(0, 8) || null
+            otId: workOrder?.id?.slice(0, 8) || null,
+            externalId: workOrder?.external_id || null
         };
     });
 }

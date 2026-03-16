@@ -13,7 +13,9 @@ import {
     Users,
     Activity,
     ClipboardList,
-    ShieldAlert
+    ShieldAlert,
+    AlertTriangle,
+    Bot
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -98,6 +100,11 @@ export default async function OTDetailPage({ params }: PageProps) {
                                 <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest text-slate-400">
                                     Vista 360 Operativa
                                 </span>
+                                {ot.external_id && (
+                                    <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                                        Aviso COPEC: {ot.external_id}
+                                    </span>
+                                )}
                             </div>
                             <h1 className="text-3xl font-black uppercase italic tracking-tight">{ot.title}</h1>
                         </div>
@@ -106,7 +113,14 @@ export default async function OTDetailPage({ params }: PageProps) {
                     <div className="flex items-center gap-4 border-l border-white/10 pl-6 h-16 hidden md:flex">
                         <div className="text-right">
                             <p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Estación</p>
-                            <p className="font-black text-blue-400 font-mono text-lg">{ot.station?.code || "S-SIN-COD"}</p>
+                            <p className="font-black text-blue-400 font-mono text-lg">
+                                {ot.station?.code || ot.metadata?.detected_station_code || "S-SIN-COD"}
+                            </p>
+                        </div>
+                        <div className="w-px h-8 bg-white/10 mx-2" />
+                        <div className="text-right">
+                            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">N° Orden</p>
+                            <p className="font-black text-purple-400 font-mono text-lg">{ot.sap_order_id || "N/A"}</p>
                         </div>
                         <div className="w-px h-8 bg-white/10 mx-2" />
                         <div className="text-right">
@@ -127,6 +141,12 @@ export default async function OTDetailPage({ params }: PageProps) {
                             }`}>
                             Prioridad {ot.priority}
                         </div>
+                        {((ot.metadata as any)?.reactive_creation) && (
+                            <div className={`absolute top-11 right-0 px-6 py-2 rounded-bl-[1.5rem] text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${((ot.metadata as any)?.reactive_warning) ? 'bg-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.4)]' : 'bg-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]'}`}>
+                                {((ot.metadata as any)?.reactive_warning) ? <AlertTriangle className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
+                                {((ot.metadata as any)?.reactive_warning) ? 'REACTIVO PM01 ⚠️' : 'PM02 AUTO'}
+                            </div>
+                        )}
 
                         <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
                             <ClipboardList className="text-blue-500 w-5 h-5" /> Detalles del Requerimiento
@@ -237,18 +257,45 @@ export default async function OTDetailPage({ params }: PageProps) {
 
                     {/* Información de la Estación (Movido al final de la columna izquierda) */}
                     <section className="bg-white/5 border border-white/10 p-8 rounded-[3rem] backdrop-blur-md">
-                        <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
-                            <MapPin className="text-red-500 w-5 h-5" /> Punto de Servicio (EDS)
-                        </h2>
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-xl font-bold flex items-center gap-3">
+                                <MapPin className="text-red-500 w-5 h-5" /> Punto de Servicio (EDS)
+                            </h2>
+                            {ot.metadata?.detected_station_code && ot.station?.code !== ot.metadata.detected_station_code && (
+                                <span className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[8px] font-black uppercase tracking-widest text-amber-500 animate-pulse">
+                                    Desviación en Vinculación Detectada
+                                </span>
+                            )}
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-4">
-                                <div className="p-6 bg-black/40 border border-white/5 rounded-[2.5rem]">
+                                <div className="p-6 bg-black/40 border border-white/5 rounded-[2.5rem] relative overflow-hidden group">
                                     <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Nombre Comercial</p>
-                                    <p className="text-2xl font-black uppercase italic tracking-tight mb-2">{ot.station?.name || "N/A"}</p>
+                                    <p className="text-2xl font-black uppercase italic tracking-tight mb-2">
+                                        {ot.station?.name || "N/A"}
+                                    </p>
                                     <div className="flex items-start gap-2 text-xs text-slate-400">
                                         <MapPin className="w-3.5 h-3.5 shrink-0 text-red-500/50" />
                                         <span className="leading-tight">{ot.station?.address || "Sin dirección"}</span>
                                     </div>
+
+                                    {/* Surgical Intelligence Fallback: Si el código no coincide, mostrar lo que leyó la IA */}
+                                    {ot.metadata?.detected_station_code && ot.station?.code !== ot.metadata.detected_station_code && (
+                                        <div className="mt-6 pt-6 border-t border-white/10 space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="px-2 py-0.5 rounded text-[8px] font-black bg-amber-500 text-black uppercase tracking-tighter">
+                                                    Verdad de Terreno (Email)
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase text-amber-500/70 tracking-widest">EDS Detectada por IA</p>
+                                                <p className="text-sm font-bold text-slate-300">Estación: {ot.metadata.detected_station_code}</p>
+                                            </div>
+                                            <p className="text-[9px] text-slate-500 italic leading-relaxed">
+                                                Nota: Esta OT fue vinculada automáticamente a "{ot.station?.name}". El código SAP detectado en el correo ({ot.metadata.detected_station_code}) prevalece para la operación.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="space-y-4">
@@ -290,22 +337,34 @@ export default async function OTDetailPage({ params }: PageProps) {
 
                     {/* Detección de Insumos por IA (Siempre visible como referencia) */}
                     {ot.metadata?.repuestos && ot.metadata.repuestos.length > 0 && (
-                        <section className="bg-blue-600/5 border border-blue-500/20 p-8 rounded-[3rem] backdrop-blur-md">
+                        <section className="bg-blue-600/5 border border-blue-500/20 p-8 rounded-[3rem] backdrop-blur-md relative overflow-hidden">
+                            <div className="absolute top-0 right-0 px-4 py-2 bg-blue-500/20 rounded-bl-3xl border-l border-b border-blue-500/30">
+                                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-blue-400">Vision System Active</span>
+                            </div>
+                            
                             <h3 className="font-bold text-lg mb-6 flex items-center gap-3">
-                                <Activity className="text-blue-400 w-5 h-5" /> Análisis IA Histórico
+                                <Bot className="text-blue-400 w-5 h-5" /> Evidencia Técnica (PDF)
                             </h3>
                             <div className="space-y-3">
                                 {(ot.metadata.repuestos as AiComponentMatch[]).map((rep, idx: number) => (
-                                    <div key={idx} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl">
-                                        <div>
-                                            <p className="text-sm font-bold text-blue-100">{rep.nombre}</p>
-                                            <p className="text-[10px] text-slate-500 italic">Código: {rep.codigo || 'N/A'}</p>
+                                    <div key={idx} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl group hover:border-blue-500/20 transition-all">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-2 h-2 rounded-full bg-blue-500/40 animate-pulse" />
+                                            <div>
+                                                <p className="text-sm font-bold text-blue-100 uppercase italic tracking-tight">{rep.nombre}</p>
+                                                <p className="text-[9px] font-mono text-slate-500">REF: {rep.codigo || 'S/COD'}</p>
+                                            </div>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-lg font-black text-blue-400">{rep.cantidad}</p>
+                                            <p className="text-xl font-black text-blue-400 tracking-tighter">x{rep.cantidad}</p>
                                         </div>
                                     </div>
                                 ))}
+                                <div className="pt-4 border-t border-white/5">
+                                    <p className="text-[9px] text-slate-500 italic leading-tight uppercase font-medium tracking-widest text-center">
+                                        Datos extraídos automáticamente por IA desde el adjunto original
+                                    </p>
+                                </div>
                             </div>
                         </section>
                     )}

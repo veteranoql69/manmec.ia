@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, Tool, SchemaType, Part } from "@google/generative-a
 import { generateSystemPrompt } from "./prompts";
 import { getInventoryStock, getWorkOrders, getServiceStations } from "./tools";
 
-export const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+export const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy_key_for_build');
 export const VISION_MODEL = "gemini-1.5-flash"; // Modelo para procesamiento de imágenes/PDFs
 
 /**
@@ -58,9 +58,16 @@ export async function generateAiResponse(
     orgSettings: Record<string, unknown>,
     audioBuffer?: Buffer // Nuevo parámetro opcional para mensajes de voz
 ) {
+    const modelMatrix = (orgSettings as any)?.model_matrix || {};
+    const chatModelName = modelMatrix.chat || "models/gemini-1.5-flash";
+    const voiceModelName = modelMatrix.voice || "models/gemini-1.5-flash";
+
+    // Si hay audio, usamos el modelo especializado en voz, de lo contrario el de chat
+    const activeModelName = audioBuffer ? voiceModelName : chatModelName;
+
     const model = genAI.getGenerativeModel({
-        model: "gemini-2.0-flash", // Actualizado a la versión estable 2.0
-        systemInstruction: generateSystemPrompt(orgSettings), // Ya no requiere cast tras actualizar prompts.ts
+        model: activeModelName,
+        systemInstruction: generateSystemPrompt(orgSettings),
         tools,
     });
 

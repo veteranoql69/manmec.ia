@@ -44,3 +44,26 @@ doc_example/
 next-env.d.ts
 
 /src/generated/prisma
+
+# Temporary debug scripts and logs
+/*.ts
+!/src/**/*.ts
+/*.json
+!/package.json
+!/package-lock.json
+!/tsconfig.json
+!/next.config.mjs
+!/recent_logs.json
+/*.mjs
+!/next.config.mjs
+/*.sql
+!/prisma/**/*.sql
+/last_log.json
+/payload_debug.json
+/webhook.log
+/*.js
+/test_pdf_parse.js
+/recent_logs.json
+/scripts/find-sku.ts
+/scripts/list_gemini_models*
+/scripts/search_station_by_code.ts

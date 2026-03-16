@@ -127,6 +127,21 @@ export function SettingsForm({ initialData }: { initialData: OrganizationSetting
                                 placeholder="ej: copec.cl, enex.cl"
                                 className="w-full bg-slate-900/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all placeholder:text-slate-700"
                             />
+
+                            {/* ID de Organización para Integraciones */}
+                            <div className="flex items-start gap-4 pt-6 border-t border-white/5">
+                                <div className="w-12 h-12 rounded-2xl bg-purple-500/20 flex items-center justify-center shrink-0">
+                                    <Globe className="w-6 h-6 text-purple-400" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-sm font-black text-white uppercase tracking-widest">
+                                        ID de Organización (Integraciones)
+                                    </label>
+                                    <p className="text-xs text-slate-500 font-medium font-mono text-purple-400/80">
+                                        {initialData.id}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Botón de Guardado */}

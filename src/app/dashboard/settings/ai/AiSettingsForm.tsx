@@ -1,31 +1,67 @@
 "use client";
 
-import { useTransition, useState, useMemo } from "react";
-import { saveAiSettings } from "./actions";
+import { useTransition, useState, useMemo, useEffect } from "react";
+import { saveAiSettings, getAvailableModels } from "./actions";
 import { generateSystemPrompt } from "@/lib/ai/prompts";
 
 interface AiSettingsFormProps {
-    initialSettings: Record<string, unknown>;
+    initialSettings: Record<string, any>;
     orgId: string;
+}
+
+interface GeminiModel {
+    id: string;
+    displayName: string;
+    description: string;
 }
 
 export function AiSettingsForm({ initialSettings, orgId }: AiSettingsFormProps) {
     const [isPending, startTransition] = useTransition();
     const [isSaved, setIsSaved] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
 
-    // Estado para la previsualización en vivo
+    // Cargar modelos disponibles
+    useEffect(() => {
+        async function loadModels() {
+            try {
+                const models = await getAvailableModels();
+                setAvailableModels(models);
+            } catch (err) {
+                console.error("Error loading models:", err);
+            }
+        }
+        loadModels();
+    }, []);
+
     const [settings, setSettings] = useState({
         name: (initialSettings?.name as string) || "Asistente Manmec",
         communication_style: (initialSettings?.communication_style as string) || "formal",
-        extra_instructions: (initialSettings?.extra_instructions as string) || ""
+        extra_instructions: (initialSettings?.extra_instructions as string) || "",
+        model_matrix: {
+            chat: initialSettings?.model_matrix?.chat || "models/gemini-1.5-flash",
+            voice: initialSettings?.model_matrix?.voice || "models/gemini-1.5-flash",
+            vision: initialSettings?.model_matrix?.vision || "models/gemini-1.5-flash",
+        }
     });
 
     const currentPrompt = useMemo(() => generateSystemPrompt(settings), [settings]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        // Mapeo de nombres de form a nombres de estado
+
+        if (name.startsWith("model_")) {
+            const key = name.replace("model_", "");
+            setSettings(prev => ({
+                ...prev,
+                model_matrix: {
+                    ...prev.model_matrix,
+                    [key]: value
+                }
+            }));
+            return;
+        }
+
         const keyMap: Record<string, string> = {
             'ai_name': 'name',
             'communication_style': 'communication_style',
@@ -59,8 +95,65 @@ export function AiSettingsForm({ initialSettings, orgId }: AiSettingsFormProps) 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
 
-            {/* Identity Group */}
+            {/* Matrix Models Group */}
             <div className="space-y-4">
+                <h3 className="text-lg font-medium text-blue-400 border-b border-blue-500/20 pb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                    Matriz de Motores IA
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3">
+                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Chat & Texto (Web)</label>
+                        <select
+                            name="model_chat"
+                            value={settings.model_matrix.chat}
+                            onChange={handleChange}
+                            className="w-full bg-slate-900 border border-white/20 rounded-lg p-2 text-sm text-white"
+                        >
+                            {availableModels.map(m => (
+                                <option key={m.id} value={m.id}>{m.displayName || m.id}</option>
+                            ))}
+                        </select>
+                        <p className="text-[10px] text-slate-500 leading-tight">Optimizado para respuestas rápidas y precisas en el chat.</p>
+                    </div>
+
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3">
+                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Voz & Audios (Telegram)</label>
+                        <select
+                            name="model_voice"
+                            value={settings.model_matrix.voice}
+                            onChange={handleChange}
+                            className="w-full bg-slate-900 border border-white/20 rounded-lg p-2 text-sm text-white"
+                        >
+                            {availableModels.map(m => (
+                                <option key={m.id} value={m.id}>{m.displayName || m.id}</option>
+                            ))}
+                        </select>
+                        <p className="text-[10px] text-slate-500 leading-tight">Especializado en transcripción y comprensión de audios de terreno.</p>
+                    </div>
+
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3">
+                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Visión & Documentos (PDF)</label>
+                        <select
+                            name="model_vision"
+                            value={settings.model_matrix.vision}
+                            onChange={handleChange}
+                            className="w-full bg-slate-900 border border-white/20 rounded-lg p-2 text-sm text-white"
+                        >
+                            {availableModels.map(m => (
+                                <option key={m.id} value={m.id}>{m.displayName || m.id}</option>
+                            ))}
+                        </select>
+                        <p className="text-[10px] text-slate-500 leading-tight">Mejor capacidad para extraer datos de Guías de Despacho y Certificados.</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Identity Group */}
+            <div className="space-y-4 pt-4">
                 <h3 className="text-lg font-medium text-white border-b border-white/10 pb-2">Identidad Básica</h3>
 
                 <div>
@@ -141,28 +234,6 @@ export function AiSettingsForm({ initialSettings, orgId }: AiSettingsFormProps) 
                         Estas instrucciones se cargarán en el System Prompt principal y afectarán cómo opera y modela sus respuestas. Mantenlas breves y precisas.
                     </p>
                 </div>
-            </div>
-
-            {/* Prompt View Section */}
-            <div className="space-y-4 pt-4">
-                <h3 className="text-lg font-medium text-blue-400 border-b border-blue-500/20 pb-2 flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                    </svg>
-                    System Prompt Activo (Vista Previa)
-                </h3>
-
-                <div className="relative group">
-                    <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
-                    <div className="relative bg-slate-950 rounded-xl p-5 border border-white/10">
-                        <pre className="text-xs text-blue-100/70 font-mono whitespace-pre-wrap leading-relaxed italic">
-                            {currentPrompt}
-                        </pre>
-                    </div>
-                </div>
-                <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest">
-                    Este es el &quot;cerebro&quot; que lee Gemini antes de responder en Web y Telegram
-                </p>
             </div>
 
             {/* Error & Feedback */}
