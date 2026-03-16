@@ -1,13 +1,14 @@
 import { requireRole } from "@/lib/auth";
 import { SupervisorDashboardClient } from "@/components/dashboard/SupervisorDashboardClient";
 import { getDashboardStats, getCurrentOperations, getRecentChronology, getCriticalInventory } from "./actions";
+import { type WorkOrderOp } from "@/types/supervisor";
 
 export default async function SupervisorDashboardPage() {
     // Solo SUPERVISOR o superior
     const profile = await requireRole("SUPERVISOR");
 
     // Obtener datos reales
-    const [stats, currentOps, chronology, criticalInventory] = await Promise.all([
+    const [stats, currentOps, chronology, criticalInventory]: [any, WorkOrderOp[], any[], any[]] = await Promise.all([
         getDashboardStats(),
         getCurrentOperations(),
         getRecentChronology(),

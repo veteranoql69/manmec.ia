@@ -21,19 +21,8 @@ import {
 import Link from "next/link";
 import type { ManmecUserProfile } from "@/lib/auth";
 import { ChronologyTimeline } from "./ChronologyTimeline";
+import { type WorkOrderOp } from "../../types/supervisor";
 
-interface OpsItem {
-    id: string;
-    mechanicName: string;
-    vehicle: string;
-    ot: string;
-    externalId: string | null;
-    stationCode: string | null;
-    otType: string;
-    status: string;
-    createdAt: string;
-    updatedAt: string;
-}
 
 interface CriticalItem {
     id: string;
@@ -49,14 +38,14 @@ interface Props {
         activeMechanics: number;
         criticalStock: number;
     };
-    currentOps: OpsItem[];
+    currentOps: WorkOrderOp[];
     chronology: any[];
     criticalInventory: CriticalItem[];
 }
 
 export function SupervisorDashboardClient({ profile, stats: realStats, currentOps, chronology, criticalInventory }: Props) {
     const [search, setSearch] = useState("");
-    const [sortKey, setSortKey] = useState<keyof OpsItem>("createdAt");
+    const [sortKey, setSortKey] = useState<keyof WorkOrderOp>("createdAt");
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const [visibleOps, setVisibleOps] = useState(8);
     const [mounted, setMounted] = useState(false);
@@ -97,7 +86,7 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
         return result;
     }, [currentOps, search, sortKey, sortOrder]);
 
-    const handleSort = (key: keyof OpsItem) => {
+    const handleSort = (key: keyof WorkOrderOp) => {
         if (sortKey === key) {
             setSortOrder(sortOrder === "asc" ? "desc" : "asc");
         } else {
@@ -106,7 +95,7 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
         }
     };
 
-    const SortIcon = ({ colKey }: { colKey: keyof OpsItem }) => {
+    const SortIcon = ({ colKey }: { colKey: keyof WorkOrderOp }) => {
         if (sortKey !== colKey) return <ArrowUpDown className="w-3 h-3 text-slate-600" />;
         return sortOrder === "asc" ? <ArrowUp className="w-3 h-3 text-blue-400" /> : <ArrowDown className="w-3 h-3 text-blue-400" />;
     };

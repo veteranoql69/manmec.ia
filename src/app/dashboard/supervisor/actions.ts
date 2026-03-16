@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { type WorkOrderOp } from "@/types/supervisor";
 
 /**
  * Obtiene las métricas clave para el panel del supervisor conectadas a datos reales
@@ -91,7 +92,7 @@ export async function getCriticalInventory() {
 /**
  * Obtiene la lista de operaciones en terreno filtradas por la org (Real Time)
  */
-export async function getCurrentOperations() {
+export async function getCurrentOperations(): Promise<WorkOrderOp[]> {
     const profile = await requireRole("SUPERVISOR");
     const supabase = await createClient();
 
@@ -117,11 +118,11 @@ export async function getCurrentOperations() {
         throw error;
     }
 
-    return workOrders.map(wo => {
-        const assignedUser = wo.assigned_user as unknown as { full_name: string } | null;
-        const vehicle = wo.vehicle as unknown as { plate: string } | null;
-        const station = wo.station as unknown as { code: string } | null;
-        return {
+    return workOrders.map((wo: any) => {
+        const assignedUser = wo.assigned_user as any;
+        const vehicle = wo.vehicle as any;
+        const station = wo.station as any;
+        const op: WorkOrderOp = {
             id: wo.id,
             mechanicName: assignedUser?.full_name || "POR ASIGNAR",
             vehicle: vehicle?.plate || "N/A",
@@ -133,6 +134,7 @@ export async function getCurrentOperations() {
             createdAt: wo.created_at,
             updatedAt: wo.updated_at
         };
+        return op;
     });
 }
 
