@@ -103,7 +103,7 @@ export function FleetManagementClient({ initialVehicles }: Props) {
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => setAuditVehicle(vehicle)}
-                                        className="hidden group-hover:flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white rounded-xl text-xs font-bold transition-all border border-blue-500/30 shadow-inner"
+                                        className="flex md:hidden md:group-hover:flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white rounded-xl text-xs font-bold transition-all border border-blue-500/30 shadow-inner"
                                     >
                                         <Package className="w-3.5 h-3.5" />
                                         <span>LIVE STOCK</span>
