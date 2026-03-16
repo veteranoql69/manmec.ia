@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
             logWebhook(`📎 Attachments is present. Type: ${typeof payload.attachments}. Length: ${Array.isArray(payload.attachments) ? payload.attachments.length : 'Not an array'}`);
         }
         const { from, to, subject, body, attachments } = payload;
+        const safeAttachments = Array.isArray(attachments) ? attachments : (attachments ? [attachments] : []);
 
         const rawFrom = String(from || "");
         const rawTo = String(to || "");
@@ -53,15 +54,15 @@ export async function POST(req: NextRequest) {
 
         logWebhook(`🏢 Matched Org: ${org.name} (ID: ${org.id})`);
 
-        const receivedNames = (attachments || []).map((a: any) => a.filename).join(', ');
+        const receivedNames = safeAttachments.map((a: any) => a.filename).join(', ');
         logWebhook(`📎 Adjuntos recibidos: ${receivedNames || 'Ninguno'}`);
 
-        if (attachments && Array.isArray(attachments) && attachments.length > 0) {
-            const firstKeys = Object.keys(attachments[0]).join(', ');
+        if (safeAttachments.length > 0) {
+            const firstKeys = Object.keys(safeAttachments[0]).join(', ');
             logWebhook(`📎 Primer adjunto tiene llaves: ${firstKeys}`);
         }
 
-        const validAttachments = (attachments || []).filter((a: any) => {
+        const validAttachments = safeAttachments.filter((a: any) => {
             const name = (a.filename || "").toLowerCase();
             const rawContent = a.content || a.data || a.base64 || "";
             const hasContent = rawContent.length > 0;
