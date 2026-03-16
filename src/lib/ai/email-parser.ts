@@ -3,7 +3,11 @@ import { GoogleGenerativeAI, Part } from "@google/generative-ai";
 import { PDFParse } from "pdf-parse";
 
 // DEBUG: v2.0 - Hybrid Extraction
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const API_KEY = process.env.GEMINI_API_KEY || "";
+if (!API_KEY) {
+    console.warn("⚠️ [AI] GEMINI_API_KEY no encontrada en variables de entorno.");
+}
+const genAI = new GoogleGenerativeAI(API_KEY);
 
 export type EmailNotificationType = 'OT_NOTIFICATION' | 'OT_OPEN' | 'OT_OPENED' | 'OT_CLOSURE' | 'SHIPMENT_NOTIFICATION' | 'UNKNOWN';
 

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseEmailWithIA } from "@/lib/ai/email-parser";
-import fs from "fs";
 
 export const dynamic = 'force-dynamic';
 
-function logToFile(msg: string) {
-    const timestamp = new Date().toISOString();
-    fs.appendFileSync('webhook.log', `[${timestamp}] ${msg}\n`);
-    console.log(msg);
+/**
+ * Sistema de Logs para Webhook (Producción friendly)
+ */
+function logWebhook(msg: string) {
+    console.log(`[WEBHOOK_SYS] ${msg}`);
 }
 
 /**
@@ -24,9 +24,9 @@ export async function POST(req: NextRequest) {
             payload.attachments = payload["attachments "];
         }
 
-        logToFile(`📦 Full Payload Keys: ${Object.keys(payload).join(', ')}`);
+        logWebhook(`📦 Full Payload Keys: ${Object.keys(payload).join(', ')}`);
         if (payload.attachments) {
-            logToFile(`📎 Attachments is present. Type: ${typeof payload.attachments}. Length: ${Array.isArray(payload.attachments) ? payload.attachments.length : 'Not an array'}`);
+            logWebhook(`📎 Attachments is present. Type: ${typeof payload.attachments}. Length: ${Array.isArray(payload.attachments) ? payload.attachments.length : 'Not an array'}`);
         }
         const { from, to, subject, body, attachments } = payload;
 
@@ -47,18 +47,18 @@ export async function POST(req: NextRequest) {
             .maybeSingle();
 
         if (!org) {
-            logToFile(`❌ Org not found for domains: ${allDomains.join(', ')}`);
+            logWebhook(`❌ Org not found for domains: ${allDomains.join(', ')}`);
             return NextResponse.json({ error: `Org not found` }, { status: 404 });
         }
 
-        logToFile(`🏢 Matched Org: ${org.name} (ID: ${org.id})`);
+        logWebhook(`🏢 Matched Org: ${org.name} (ID: ${org.id})`);
 
         const receivedNames = (attachments || []).map((a: any) => a.filename).join(', ');
-        logToFile(`📎 Adjuntos recibidos: ${receivedNames || 'Ninguno'}`);
+        logWebhook(`📎 Adjuntos recibidos: ${receivedNames || 'Ninguno'}`);
 
         if (attachments && Array.isArray(attachments) && attachments.length > 0) {
             const firstKeys = Object.keys(attachments[0]).join(', ');
-            logToFile(`📎 Primer adjunto tiene llaves: ${firstKeys}`);
+            logWebhook(`📎 Primer adjunto tiene llaves: ${firstKeys}`);
         }
 
         const validAttachments = (attachments || []).filter((a: any) => {
@@ -79,31 +79,31 @@ export async function POST(req: NextRequest) {
         const aiSettings = (org.ai_settings as any) || {};
         const visionModel = aiSettings.model_matrix?.vision || "models/gemini-1.5-flash";
 
-        logToFile(`🧠 Procesando correo (${org.name}): ${validAttachments.length} adjuntos válidos.`);
+        logWebhook(`🧠 Procesando correo (${org.name}): ${validAttachments.length} adjuntos válidos.`);
 
         const results: any[] = [];
 
         // CASO A: Hay adjuntos (Procesamos cada PDF de forma independiente)
         if (validAttachments.length > 0) {
             for (const [index, att] of validAttachments.entries()) {
-                logToFile(`📄 Procesando adjunto ${index + 1}/${validAttachments.length}: ${att.filename}`);
+                logWebhook(`📄 Procesando adjunto ${index + 1}/${validAttachments.length}: ${att.filename}`);
                 try {
                     const buffer = Buffer.from(att.standardizedContent, 'base64');
                     const res = await processEmailUnit(supabase, org, body, subject, finalUserId, visionModel, payload, buffer);
                     results.push({ attachment: att.filename, ...res });
                 } catch (err: any) {
-                    logToFile(`❌ Error procesando adjunto ${att.filename}: ${err.message}`);
+                    logWebhook(`❌ Error procesando adjunto ${att.filename}: ${err.message}`);
                     results.push({ attachment: att.filename, error: err.message });
                 }
             }
         } else {
             // CASO B: No hay adjuntos (Procesamos solo el cuerpo/asunto)
-            logToFile(`📧 Sin adjuntos validos. Procesando cuerpo del mensaje.`);
+            logWebhook(`📧 Sin adjuntos validos. Procesando cuerpo del mensaje.`);
             try {
                 const res = await processEmailUnit(supabase, org, body, subject, finalUserId, visionModel, payload);
                 results.push({ processing_mode: 'BODY_ONLY', ...res });
             } catch (err: any) {
-                logToFile(`❌ Error procesando cuerpo: ${err.message}`);
+                logWebhook(`❌ Error procesando cuerpo: ${err.message}`);
                 results.push({ error: err.message });
             }
         }
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, results });
 
     } catch (error: any) {
-        logToFile(`❌ Global Webhook Error: ${error.message}`);
+        logWebhook(`❌ Global Webhook Error: ${error.message}`);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
@@ -138,7 +138,7 @@ async function processEmailUnit(
         try {
             parsedData = await parseEmailWithIA(body, pdfBuffer, visionModel, subject);
             const rawDebug = JSON.stringify(parsedData);
-            logToFile(`🤖 IA Unit Parsed (Raw): ${rawDebug}`);
+            logWebhook(`🤖 IA Unit Parsed (Raw): ${rawDebug}`);
         } catch (err: any) {
             status = 'ERROR';
             errorMessage = `AI_PARSING_FAILED: ${err.message}`;
@@ -171,7 +171,7 @@ async function processEmailUnit(
                 }
             }
 
-            logToFile(`🔍 Station Identification: Code=[${station_code}] Source=[${detectionSource}]`);
+            logWebhook(`🔍 Station Identification: Code=[${station_code}] Source=[${detectionSource}]`);
 
             let { data: station } = await supabase.from("manmec_service_stations")
                 .select("id, name")
@@ -190,7 +190,7 @@ async function processEmailUnit(
             }
 
             if (!station) {
-                logToFile(`❌ Error: Estación [${station_code}] no encontrada en DB.`);
+                logWebhook(`❌ Error: Estación [${station_code}] no encontrada en DB.`);
                 finalResult = { type: 'ERROR', error: `Estación [${station_code || 'DESCONOCIDA'}] no encontrada.` };
                 status = 'WARNING';
                 errorMessage = `STATION_NOT_FOUND: ${station_code}`;
@@ -355,7 +355,7 @@ async function processEmailUnit(
                 error_message: errorMessage
             });
         } catch (auditErr: any) {
-            logToFile(`⚠️ Fallo al insertar log de auditoría: ${auditErr.message}`);
+            logWebhook(`⚠️ Fallo al insertar log de auditoría: ${auditErr.message}`);
         }
     }
 
