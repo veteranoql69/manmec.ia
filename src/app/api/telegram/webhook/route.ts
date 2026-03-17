@@ -220,21 +220,40 @@ async function sendTelegramMessage(chatId: string | number, text: string, replyM
     const token = process.env.TELEGRAM_API_BOT;
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
-    const body: any = { chat_id: chatId, text: text, parse_mode: 'Markdown' };
-    if (replyMarkup) {
-        if (replyMarkup.remove_keyboard) {
-            body.reply_markup = { remove_keyboard: true };
-        } else {
-            body.reply_markup = replyMarkup;
+    const send = async (parseMode?: string) => {
+        const body: any = { chat_id: chatId, text: text };
+        if (parseMode) body.parse_mode = parseMode;
+        
+        if (replyMarkup) {
+            if (replyMarkup.remove_keyboard) {
+                body.reply_markup = { remove_keyboard: true };
+            } else {
+                body.reply_markup = replyMarkup;
+            }
         }
-    }
 
-    try {
-        await fetch(url, {
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
+        return response;
+    };
+
+    try {
+        // 1. Intentar con Markdown (por defecto)
+        let res = await send('Markdown');
+        
+        // 2. Si falla por error 400 (Bad Request - usualmente Markdown inválido), reintentar sin formato
+        if (res.status === 400) {
+            console.warn('[TELEGRAM] Markdown error, retrying without formatting...');
+            res = await send();
+        }
+
+        if (!res.ok) {
+            const errData = await res.json();
+            console.error('[TELEGRAM ERROR DATA]', errData);
+        }
     } catch (e) {
         console.error('[TELEGRAM] Network error sending message', e);
     }
