@@ -21,42 +21,49 @@ function getSupabaseAdmin() {
  */
 export async function executeReadOnlyQuery(organization_id: string, sql: string) {
     if (!process.env.DATABASE_URL) {
-        throw new Error("DATABASE_URL is missing.");
+        console.error("[AI-SQL] CRITICAL: DATABASE_URL is missing in process.env");
+        return { error: "Configuración de base de datos ausente." };
     }
 
     // Seguridad básica: Solo permitir SELECT
     const normalizedSql = sql.trim().toUpperCase();
     if (!normalizedSql.startsWith("SELECT")) {
-        throw new Error("Only SELECT queries are allowed for security reasons.");
+        return { error: "Solo se permiten consultas de lectura (SELECT)." };
     }
 
     // Prevenir comandos destructivos o de escritura
     const forbiddenKeywords = ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE"];
     for (const keyword of forbiddenKeywords) {
         if (normalizedSql.includes(keyword + " ") || normalizedSql.includes(" " + keyword)) {
-          throw new Error(`Security violation: Forbidden keyword '${keyword}' detected.`);
+          return { error: `Violación de seguridad: palabra prohibida '${keyword}' detectada.` };
         }
     }
 
     const client = new Client({
         connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false } // Supabase requiere SSL
+        ssl: {
+            rejectUnauthorized: false
+        },
+        connectionTimeoutMillis: 10000,
     });
 
     try {
+        console.log(`[AI-SQL] Intentando conectar a DB...`);
         await client.connect();
         
-        // Ejecutar la consulta
-        // NOTA: El prompt del sistema obliga a la IA a incluir siempre el organization_id
-        console.log(`[AI-SQL] Ejecutando: ${sql}`);
+        console.log(`[AI-SQL] Conexión establecida. Ejecutando: ${sql.substring(0, 100)}...`);
         const res = await client.query(sql);
         
         return res.rows;
     } catch (error: any) {
-        console.error("[AI-SQL ERROR]", error);
-        return { error: error.message };
+        console.error("[AI-SQL ERROR EN EXECUTE]", error);
+        return { error: `Error de base de datos: ${error.message}` };
     } finally {
-        await client.end();
+        try {
+            await client.end();
+        } catch (e) {
+            console.error("[AI-SQL] Error al cerrar conexión", e);
+        }
     }
 }
 
