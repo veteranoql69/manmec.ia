@@ -60,16 +60,22 @@ export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer, mode
       let PDFParseLib;
       try {
         const mod: any = await import("pdf-parse");
-        PDFParseLib = mod.PDFParse || mod.default || mod;
+        // pdf-parse exporta la función principal por defecto
+        PDFParseLib = mod.default || mod;
       } catch (e: any) {
-        console.error("Failed to dynamically import pdf-parse:", e);
-        throw e;
+        console.warn("[AI] No se pudo cargar pdf-parse dinámicamente:", e.message);
       }
-      const parser = new PDFParseLib({ data: pdfBuffer });
-      const result = await parser.getText();
-      extractedPdfText = result.text;
-    } catch (err) {
-      console.error("⚠️ Error extrayendo texto del PDF:", err);
+
+      if (PDFParseLib && typeof PDFParseLib === 'function') {
+        const result = await PDFParseLib(pdfBuffer);
+        extractedPdfText = result?.text || "";
+      }
+    } catch (err: any) {
+      // Silenciamos el error del worker en producción para no ensuciar logs; 
+      // Gemini Flash usará su visión nativa como respaldo.
+      if (!err.message?.includes("fake worker")) {
+        console.warn("⚠️ [AI] Extracción manual de PDF fallida (se usará visión IA):", err.message);
+      }
     }
   }
 
