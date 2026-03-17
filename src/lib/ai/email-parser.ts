@@ -2,6 +2,18 @@ import { GoogleGenerativeAI, Part } from "@google/generative-ai";
 // @ts-ignore - Import naming fix for pdf-parse (v2.4.5+)
 import { PDFParse } from "pdf-parse";
 
+// Parche para cargar correctamente pdf-parse (pdfjs-dist) en entornos Server-Side / turbopack
+// ya que requiere clases de renderizado DOM que Node no tiene de fábrica.
+if (typeof global !== "undefined") {
+    try {
+        const canvas = require("canvas");
+        if (!global.DOMMatrix) global.DOMMatrix = canvas.DOMMatrix;
+        if (!global.ImageData) global.ImageData = canvas.ImageData;
+        if (!global.Path2D) global.Path2D = canvas.Path2D;
+    } catch (e) {
+        console.warn("⚠️ Polyfill de Canvas (DOMMatrix) no cargado. Requerido para pdf-parse puro en Node.");
+    }
+}
 // DEBUG: v2.0 - Hybrid Extraction
 const API_KEY = process.env.GEMINI_API_KEY || "";
 if (!API_KEY) {
