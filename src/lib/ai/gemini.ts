@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, Tool, SchemaType, Part } from "@google/generative-ai";
 import { generateSystemPrompt } from "./prompts";
-import { getInventoryStock, getWorkOrders, getServiceStations } from "./tools";
+import { getInventoryStock, getWorkOrders, getServiceStations, getMechanicsStatus } from "./tools";
 
 export const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy_key_for_build');
 export const VISION_MODEL = "gemini-1.5-flash"; // Modelo para procesamiento de imágenes/PDFs
@@ -13,23 +13,23 @@ const tools: Tool[] = [
         functionDeclarations: [
             {
                 name: "getInventoryStock",
-                description: "Consulta el stock de materiales, repuestos o herramientas en las bodegas.",
+                description: "Consulta el stock de materiales, repuestos o herramientas. Úsalar para preguntas como '¿quedan pinpad?' o '¿cuánto stock hay de X?'. Busca por nombre, SKU o descripción.",
                 parameters: {
                     type: SchemaType.OBJECT,
                     properties: {
-                        query: { type: SchemaType.STRING, description: "Nombre parcial o completo del material a buscar" }
+                        query: { type: SchemaType.STRING, description: "Término de búsqueda (ej: 'pinpad', 'ax80', 'manguera')" }
                     }
                 }
             },
             {
                 name: "getWorkOrders",
-                description: "Consulta las órdenes de trabajo (OT) vigentes, su estado, prioridad y taller asignado.",
+                description: "Consulta las órdenes de trabajo (OT) vigentes. Úsala para saber qué se está haciendo, estados de avisos o prioridades.",
                 parameters: {
                     type: SchemaType.OBJECT,
                     properties: {
                         status: {
                             type: SchemaType.STRING,
-                            description: "Estado de la OT",
+                            description: "Filtrar por estado (PENDING, ASSIGNED, IN_PROGRESS, PAUSED). Por defecto trae todas las abiertas.",
                             nullable: true,
                         }
                     }
@@ -37,12 +37,20 @@ const tools: Tool[] = [
             },
             {
                 name: "getServiceStations",
-                description: "Obtiene información de contacto y ubicación de las Estaciones de Servicio (EDS).",
+                description: "Obtiene información de las Estaciones de Servicio (EDS). Úsala para identificar una EDS por su código (ej: 'la 014' o '20014') o nombre.",
                 parameters: {
                     type: SchemaType.OBJECT,
                     properties: {
-                        name_query: { type: SchemaType.STRING, description: "Nombre o parte del nombre de la estación" }
+                        query: { type: SchemaType.STRING, description: "Nombre o código de la estación (ej: '20014', '014', 'Maipú')" }
                     }
+                }
+            },
+            {
+                name: "getMechanicsStatus",
+                description: "Consulta qué está haciendo cada mecánico en este momento. Úsala para preguntas como '¿qué hace Marco?', '¿quién está trabajando ahora?' o '¿quién atiende la estación X?'.",
+                parameters: {
+                    type: SchemaType.OBJECT,
+                    properties: {}
                 }
             }
         ]
@@ -111,7 +119,10 @@ export async function generateAiResponse(
                     functionResult = await getWorkOrders(userContext.organization_id, typedArgs.status);
                     break;
                 case "getServiceStations":
-                    functionResult = await getServiceStations(userContext.organization_id, typedArgs.name_query);
+                    functionResult = await getServiceStations(userContext.organization_id, typedArgs.query);
+                    break;
+                case "getMechanicsStatus":
+                    functionResult = await getMechanicsStatus(userContext.organization_id);
                     break;
                 default:
                     throw new Error(`Herramienta no encontrada: ${name}`);
