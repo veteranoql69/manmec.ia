@@ -157,8 +157,11 @@ export async function getCurrentOperations() {
             status,
             created_at,
             updated_at,
+            external_id,
+            ot_type,
             assigned_user:assigned_to(full_name),
-            vehicle:vehicle_id(plate)
+            vehicle:vehicle_id(plate),
+            station:station_id(code)
         `)
         .eq("organization_id", profile.organization_id)
         .not("status", "in", '("COMPLETED","CANCELLED")')
@@ -177,14 +180,18 @@ export async function getCurrentOperations() {
         throw error;
     }
 
-    return workOrders.map(wo => {
-        const assignedUser = wo.assigned_user as unknown as { full_name: string } | null;
-        const vehicle = wo.vehicle as unknown as { plate: string } | null;
+    return workOrders.map((wo: any) => {
+        const assignedUser = wo.assigned_user as any;
+        const vehicle = wo.vehicle as any;
+        const station = wo.station as any;
         return {
             id: wo.id,
             mechanicName: assignedUser?.full_name || profile.full_name,
             vehicle: vehicle?.plate || "N/A",
             ot: wo.id,
+            externalId: wo.external_id,
+            stationCode: station?.code || null,
+            otType: (wo.ot_type as string) || "CORRECTIVE",
             status: wo.status,
             createdAt: wo.created_at,
             updatedAt: wo.updated_at
