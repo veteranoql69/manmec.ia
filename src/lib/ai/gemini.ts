@@ -1,56 +1,28 @@
 import { GoogleGenerativeAI, Tool, SchemaType, Part } from "@google/generative-ai";
 import { generateSystemPrompt } from "./prompts";
-import { getInventoryStock, getWorkOrders, getServiceStations, getMechanicsStatus } from "./tools";
+import { getInventoryStock, getWorkOrders, getServiceStations, getMechanicsStatus, executeReadOnlyQuery } from "./tools";
 
 export const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy_key_for_build');
 export const VISION_MODEL = "gemini-1.5-flash"; // Modelo para procesamiento de imágenes/PDFs
 
 /**
- * Define las herramientas disponibles para Gemini
+ * Define las herramientas disponibles para Gemini (Agente IA-SQL)
  */
 const tools: Tool[] = [
     {
         functionDeclarations: [
             {
-                name: "getInventoryStock",
-                description: "Consulta el stock de materiales, repuestos o herramientas. Úsalar para preguntas como '¿quedan pinpad?' o '¿cuánto stock hay de X?'. Busca por nombre, SKU o descripción.",
+                name: "executeReadOnlyQuery",
+                description: "Ejecuta una consulta SQL SELECT para obtener datos de la operación (tickets, stock, mecánicos, estaciones). Úsala para responder preguntas complejas basadas en datos reales.",
                 parameters: {
                     type: SchemaType.OBJECT,
                     properties: {
-                        query: { type: SchemaType.STRING, description: "Término de búsqueda (ej: 'pinpad', 'ax80', 'manguera')" }
-                    }
-                }
-            },
-            {
-                name: "getWorkOrders",
-                description: "Consulta las órdenes de trabajo (OT) vigentes. Úsala para saber qué se está haciendo, estados de avisos o prioridades.",
-                parameters: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                        status: {
-                            type: SchemaType.STRING,
-                            description: "Filtrar por estado (PENDING, ASSIGNED, IN_PROGRESS, PAUSED). Por defecto trae todas las abiertas.",
-                            nullable: true,
+                        sql: { 
+                            type: SchemaType.STRING, 
+                            description: "Instrucción SQL SELECT válida. Ejemplo: SELECT * FROM manmec_work_orders WHERE organization_id = '...' AND status != 'COMPLETED'" 
                         }
-                    }
-                }
-            },
-            {
-                name: "getServiceStations",
-                description: "Obtiene información de las Estaciones de Servicio (EDS). Úsala para identificar una EDS por su código (ej: 'la 014' o '20014') o nombre.",
-                parameters: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                        query: { type: SchemaType.STRING, description: "Nombre o código de la estación (ej: '20014', '014', 'Maipú')" }
-                    }
-                }
-            },
-            {
-                name: "getMechanicsStatus",
-                description: "Consulta qué está haciendo cada mecánico en este momento. Úsala para preguntas como '¿qué hace Marco?', '¿quién está trabajando ahora?' o '¿quién atiende la estación X?'.",
-                parameters: {
-                    type: SchemaType.OBJECT,
-                    properties: {}
+                    },
+                    required: ["sql"]
                 }
             }
         ]
@@ -58,7 +30,7 @@ const tools: Tool[] = [
 ];
 
 /**
- * Función principal para generar respuestas de IA con soporte para herramientas y Audio
+ * Función principal para generar respuestas de IA con soporte para herramientas de SQL
  */
 export async function generateAiResponse(
     message: string,
@@ -82,8 +54,12 @@ export async function generateAiResponse(
     const chat = model.startChat();
 
     // Preparar el contenido del mensaje (texto o texto + audio)
+    // Inyectamos el ID de la organización en el prompt de forma invisible para que la IA lo use en el SQL
+    const contextEnhancedMessage = `[USER_ORG_ID: ${userContext.organization_id}] [USER_NAME: ${userContext.full_name}] [USER_ROLE: ${userContext.role}]
+    Pregunta del usuario: ${message || "Analiza este mensaje de voz y responde a la solicitud del usuario."}`;
+
     const promptParts: (string | { inlineData: { data: string; mimeType: string } })[] = [
-        message || "Analiza este mensaje de voz y responde a la solicitud del usuario."
+        contextEnhancedMessage
     ];
 
     if (audioBuffer) {
@@ -106,26 +82,30 @@ export async function generateAiResponse(
             const { name, args } = call;
             let functionResult: unknown;
 
-            console.log(`[AI] Ejecutando herramienta: ${name}`, args);
+            console.log(`[AI-SQL] Llamada a herramienta: ${name}`, args);
 
-            // Ejecución segura de las herramientas filtradas por organización
-            const typedArgs = args as Record<string, string>;
-
-            switch (name) {
-                case "getInventoryStock":
-                    functionResult = await getInventoryStock(userContext.organization_id, typedArgs.query);
-                    break;
-                case "getWorkOrders":
-                    functionResult = await getWorkOrders(userContext.organization_id, typedArgs.status);
-                    break;
-                case "getServiceStations":
-                    functionResult = await getServiceStations(userContext.organization_id, typedArgs.query);
-                    break;
-                case "getMechanicsStatus":
-                    functionResult = await getMechanicsStatus(userContext.organization_id);
-                    break;
-                default:
-                    throw new Error(`Herramienta no encontrada: ${name}`);
+            if (name === "executeReadOnlyQuery") {
+                const typedArgs = args as { sql: string };
+                functionResult = await executeReadOnlyQuery(userContext.organization_id, typedArgs.sql);
+            } else {
+                // Fallback para herramientas antiguas si se intentan llamar (opcional)
+                const typedArgs = args as Record<string, string>;
+                switch (name) {
+                    case "getInventoryStock":
+                        functionResult = await getInventoryStock(userContext.organization_id, typedArgs.query);
+                        break;
+                    case "getWorkOrders":
+                        functionResult = await getWorkOrders(userContext.organization_id, typedArgs.status);
+                        break;
+                    case "getServiceStations":
+                        functionResult = await getServiceStations(userContext.organization_id, typedArgs.query);
+                        break;
+                    case "getMechanicsStatus":
+                        functionResult = await getMechanicsStatus(userContext.organization_id);
+                        break;
+                    default:
+                        throw new Error(`Herramienta no encontrada: ${name}`);
+                }
             }
 
             // Enviar el resultado de la función de vuelta a Gemini para que redacte la respuesta final

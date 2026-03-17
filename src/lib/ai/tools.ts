@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { Client } from "pg";
 
 /**
  * Filtra los datos sensibles para el modelo de IA
@@ -8,8 +9,6 @@ function getSupabaseAdmin() {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
-        // Durante el build, estas variables pueden no estar. 
-        // Retornamos un proxy o lanzamos error solo si se intenta usar realmente.
         throw new Error("Supabase Admin credentials missing. Check environment variables.");
     }
 
@@ -17,10 +16,56 @@ function getSupabaseAdmin() {
 }
 
 /**
+ * Ejecuta una consulta SQL de solo lectura (READ-ONLY) contra la base de datos.
+ * Esta es la herramienta principal del Agente IA-SQL.
+ */
+export async function executeReadOnlyQuery(organization_id: string, sql: string) {
+    if (!process.env.DATABASE_URL) {
+        throw new Error("DATABASE_URL is missing.");
+    }
+
+    // Seguridad básica: Solo permitir SELECT
+    const normalizedSql = sql.trim().toUpperCase();
+    if (!normalizedSql.startsWith("SELECT")) {
+        throw new Error("Only SELECT queries are allowed for security reasons.");
+    }
+
+    // Prevenir comandos destructivos o de escritura
+    const forbiddenKeywords = ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE"];
+    for (const keyword of forbiddenKeywords) {
+        if (normalizedSql.includes(keyword + " ") || normalizedSql.includes(" " + keyword)) {
+          throw new Error(`Security violation: Forbidden keyword '${keyword}' detected.`);
+        }
+    }
+
+    const client = new Client({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false } // Supabase requiere SSL
+    });
+
+    try {
+        await client.connect();
+        
+        // Ejecutar la consulta
+        // NOTA: El prompt del sistema obliga a la IA a incluir siempre el organization_id
+        console.log(`[AI-SQL] Ejecutando: ${sql}`);
+        const res = await client.query(sql);
+        
+        return res.rows;
+    } catch (error: any) {
+        console.error("[AI-SQL ERROR]", error);
+        return { error: error.message };
+    } finally {
+        await client.end();
+    }
+}
+
+/**
  * Consulta el stock de materiales o herramientas (Búsqueda Avanzada)
  * Busca por nombre, descripción o SKU y retorna la bodega.
  */
 export async function getInventoryStock(organization_id: string, query?: string) {
+    // ... (Mantener por compatibilidad interna de momento)
     const supabase = getSupabaseAdmin();
     let supabaseQuery = supabase
         .from("manmec_inventory_stock")
@@ -32,7 +77,6 @@ export async function getInventoryStock(organization_id: string, query?: string)
         .eq("item.organization_id", organization_id);
 
     if (query) {
-        // Búsqueda difusa en múltiples campos
         supabaseQuery = supabaseQuery.or(`name.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%`, { foreignTable: 'manmec_inventory_items' });
     }
 
@@ -73,7 +117,6 @@ export async function getWorkOrders(organization_id: string, status?: string) {
     if (status) {
         supabaseQuery = supabaseQuery.eq("status", status);
     } else {
-        // Por defecto, traer las que no están cerradas
         supabaseQuery = supabaseQuery.not("status", "in", '("COMPLETED","CANCELLED")');
     }
 
@@ -116,7 +159,6 @@ export async function getServiceStations(organization_id: string, query?: string
 export async function getMechanicsStatus(organization_id: string) {
     const supabase = getSupabaseAdmin();
     
-    // Obtener asignaciones activas
     const { data, error } = await supabase
         .from("manmec_work_order_assignments")
         .select(`
