@@ -1,6 +1,4 @@
 import { GoogleGenerativeAI, Part } from "@google/generative-ai";
-// @ts-ignore - Import naming fix for pdf-parse (v2.4.5+)
-import { PDFParse } from "pdf-parse";
 
 // Parche ligero (stub) para cargar correctamente pdf-parse (pdfjs-dist)
 // en entornos Server-Side y evitar crasheos de Turbopack por falta de DOMMatrix.
@@ -21,6 +19,7 @@ if (typeof global !== "undefined") {
         } as any;
     }
 }
+
 // DEBUG: v2.0 - Hybrid Extraction
 const API_KEY = process.env.GEMINI_API_KEY || "";
 if (!API_KEY) {
@@ -58,7 +57,15 @@ export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer, mode
   let extractedPdfText = "";
   if (pdfBuffer) {
     try {
-      const parser = new PDFParse({ data: pdfBuffer });
+      let PDFParseLib;
+      try {
+        const mod: any = await import("pdf-parse");
+        PDFParseLib = mod.PDFParse || mod.default || mod;
+      } catch (e: any) {
+        console.error("Failed to dynamically import pdf-parse:", e);
+        throw e;
+      }
+      const parser = new PDFParseLib({ data: pdfBuffer });
       const result = await parser.getText();
       extractedPdfText = result.text;
     } catch (err) {
