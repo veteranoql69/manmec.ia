@@ -16,7 +16,9 @@ import {
     Search,
     Plus,
     ExternalLink,
-    CheckCircle2
+    CheckCircle2,
+    Wrench,
+    Package
 } from "lucide-react";
 import Link from "next/link";
 import type { ManmecUserProfile } from "@/lib/auth";
@@ -129,32 +131,39 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Columna Principal: Operación en Terreno */}
                 <div className="lg:col-span-2 space-y-8">
-                    <section className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-sm shadow-2xl">
-                        <div className="p-6 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <h2 className="text-xl font-bold">Terreno en Tiempo Real</h2>
-                            <div className="flex gap-2">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                                    <input
-                                        type="text"
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                        placeholder="Filtrar por OT, Mecánico..."
-                                        className="bg-black/40 border border-white/10 rounded-lg py-2 pl-9 pr-4 text-sm focus:outline-none focus:border-blue-500/50 transition-colors w-full md:w-64"
-                                    />
-                                </div>
+                    {/* List/Table */}
+                    <section className="bg-white/5 border border-white/10 p-1 md:p-8 rounded-[2rem] shadow-2xl overflow-hidden relative group h-full flex flex-col">
+                        <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:opacity-10 transition-opacity">
+                            <Activity className="w-64 h-64" />
+                        </div>
+                        
+                        <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10 px-4 pt-4 md:p-0">
+                            <h2 className="font-bold text-xl flex items-center gap-2">
+                                {profile.role === 'MECHANIC' ? `Panel de Operaciones de ${profile.full_name}` : 'Terreno en Tiempo Real'}
+                            </h2>
+                            <div className="relative">
+                                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Filtrar por OT, Mecánico..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    className="bg-black/50 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-sm focus:outline-none focus:border-blue-500/50 w-full md:w-64 transition-all"
+                                />
                             </div>
                         </div>
 
-                        <div className="min-h-[300px]">
+                        <div className="flex-1 overflow-x-auto relative z-10">
                             {/* Desktop Table View */}
                             <div className="hidden md:block overflow-x-auto">
                                 <table className="w-full text-left">
                                     <thead className="bg-white/[0.02] text-slate-500 text-[10px] uppercase tracking-widest font-black">
                                         <tr>
-                                            <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("mechanicName")}>
-                                                <div className="flex items-center gap-2">Mecánico <SortIcon colKey="mechanicName" /></div>
-                                            </th>
+                                            {profile.role !== 'MECHANIC' && (
+                                                <th className="px-6 py-4 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("mechanicName")}>
+                                                    <div className="flex items-center gap-2">Mecánico <SortIcon colKey="mechanicName" /></div>
+                                                </th>
+                                            )}
                                             <th className="px-6 py-4 font-black">Vehículo</th>
                                             <th className="px-6 py-4 text-slate-500 text-[10px] uppercase font-black tracking-widest cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("externalId")}>
                                                 <div className="flex items-center gap-2">Aviso / Orden <SortIcon colKey="externalId" /></div>
@@ -171,16 +180,18 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                     <tbody className="divide-y divide-white/5">
                                         {filteredAndSortedOps.slice(0, visibleOps).map((op, i) => (
                                             <tr key={i} className={`hover:bg-white/[0.02] transition-all border-l-2 ${op.otType === "PREVENTIVE" ? "border-l-indigo-500/50" : "border-l-orange-500/50"}`}>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${op.mechanicName === 'POR ASIGNAR' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-400'}`}>
-                                                            {op.mechanicName.charAt(0)}
+                                                {profile.role !== 'MECHANIC' && (
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${op.mechanicName === 'POR ASIGNAR' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                                                                {op.mechanicName.charAt(0)}
+                                                            </div>
+                                                            <span className={`text-sm font-bold ${op.mechanicName === 'POR ASIGNAR' ? 'text-amber-500 italic' : 'text-slate-200'}`}>
+                                                                {op.mechanicName}
+                                                            </span>
                                                         </div>
-                                                        <span className={`text-sm font-bold ${op.mechanicName === 'POR ASIGNAR' ? 'text-amber-500 italic' : 'text-slate-200'}`}>
-                                                            {op.mechanicName}
-                                                        </span>
-                                                    </div>
-                                                </td>
+                                                    </td>
+                                                )}
                                                 <td className="px-6 py-4 font-mono text-xs text-slate-400 tracking-tighter">{op.vehicle}</td>
                                                 <td className="px-6 py-4">
                                                     <Link href={`/dashboard/ots/${op.id}`} className="flex items-center gap-2 text-blue-400 hover:text-blue-300 font-mono text-sm font-black">
@@ -214,17 +225,24 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                                         className={`p-4 space-y-4 border-l-4 ${op.otType === "PREVENTIVE" ? "border-l-indigo-500/50" : "border-l-orange-500/50"}`}
                                     >
                                         <div className="flex justify-between items-start">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${op.mechanicName === 'POR ASIGNAR' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-400'}`}>
-                                                    {op.mechanicName.charAt(0)}
+                                            {profile.role !== 'MECHANIC' ? (
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${op.mechanicName === 'POR ASIGNAR' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                                                        {op.mechanicName.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <p className={`text-sm font-black ${op.mechanicName === 'POR ASIGNAR' ? 'text-amber-500' : 'text-white'}`}>
+                                                            {op.mechanicName}
+                                                        </p>
+                                                        <p className="text-[10px] font-mono text-slate-500">{op.vehicle}</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className={`text-sm font-black ${op.mechanicName === 'POR ASIGNAR' ? 'text-amber-500' : 'text-white'}`}>
-                                                        {op.mechanicName}
-                                                    </p>
-                                                    <p className="text-[10px] font-mono text-slate-500">{op.vehicle}</p>
+                                            ) : (
+                                                <div className="flex items-center gap-2">
+                                                    <Truck className="w-4 h-4 text-slate-500" />
+                                                    <p className="text-sm font-mono font-bold text-slate-300">{op.vehicle}</p>
                                                 </div>
-                                            </div>
+                                            )}
                                             <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${op.status === "WORKING" ? "bg-emerald-500/10 text-emerald-400" : "bg-blue-500/10 text-blue-400"}`}>
                                                 {op.status === "WORKING" ? "Trabajando" : "En Ruta"}
                                             </span>
@@ -278,33 +296,51 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                         </section>
 
                         <section className="bg-white/5 border border-white/10 p-8 rounded-3xl shadow-2xl">
-                            <h3 className="font-bold text-xl flex items-center gap-3 mb-6">
-                                <Box className="w-6 h-6 text-orange-400" />
-                                Inventario Crítico
-                            </h3>
-                            <div className="space-y-4">
-                                {criticalInventory.length > 0 ? (
-                                    criticalInventory.map((item, i) => (
-                                        <div key={item.id} className="flex justify-between items-center text-sm p-3 bg-white/[0.02] border border-white/5 rounded-2xl">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-                                                <span className="font-medium text-slate-300 truncate max-w-[150px]">{item.name}</span>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="font-black font-mono text-red-400 block leading-none">
-                                                    {item.currentStock} u.
-                                                </span>
-                                                <span className="text-[9px] text-slate-600 uppercase font-black tracking-tighter">Min: {item.minStock}</span>
-                                            </div>
+                            {profile.role === 'MECHANIC' ? (
+                                <>
+                                    <h3 className="font-bold text-xl flex items-center gap-3 mb-6">
+                                        <Wrench className="w-6 h-6 text-blue-400" />
+                                        Últimos Repuestos Utilizados
+                                    </h3>
+                                    <div className="space-y-4 text-center py-8">
+                                        <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-3">
+                                            <Package className="w-6 h-6 text-blue-400" />
                                         </div>
-                                    ))
-                                ) : (
-                                    <div className="py-8 text-center bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
-                                        <CheckCircle2 className="w-8 h-8 text-emerald-500/20 mx-auto mb-2" />
-                                        <p className="text-xs text-slate-500 font-medium">Niveles de stock estables.</p>
+                                        <p className="text-sm font-medium text-slate-300">Historial de Consumo</p>
+                                        <p className="text-xs text-slate-500 mt-2">Tus repuestos usados en las últimas 48h aparecerán aquí.</p>
                                     </div>
-                                )}
-                            </div>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className="font-bold text-xl flex items-center gap-3 mb-6">
+                                        <Box className="w-6 h-6 text-orange-400" />
+                                        Inventario Crítico
+                                    </h3>
+                                    <div className="space-y-4">
+                                        {criticalInventory.length > 0 ? (
+                                            criticalInventory.map((item, i) => (
+                                                <div key={item.id} className="flex justify-between items-center text-sm p-3 bg-white/[0.02] border border-white/5 rounded-2xl">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                                                        <span className="font-medium text-slate-300 truncate max-w-[150px]">{item.name}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="font-black font-mono text-red-400 block leading-none">
+                                                            {item.currentStock} u.
+                                                        </span>
+                                                        <span className="text-[9px] text-slate-600 uppercase font-black tracking-tighter">Min: {item.minStock}</span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="py-8 text-center bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
+                                                <CheckCircle2 className="w-8 h-8 text-emerald-500/20 mx-auto mb-2" />
+                                                <p className="text-xs text-slate-500 font-medium">Niveles de stock estables.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
                         </section>
                     </div>
                 </div>
@@ -313,32 +349,34 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                 <div className="space-y-8">
                     <ChronologyTimeline activities={chronology} />
 
-                    <section className="bg-gradient-to-b from-indigo-600/20 to-purple-600/10 border border-indigo-500/30 p-8 rounded-[40px] relative overflow-hidden shadow-2xl">
-                        <div className="relative z-10">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2 bg-indigo-400/20 rounded-xl">
-                                    <BrainCircuit className="text-indigo-400 w-5 h-5" />
-                                </div>
-                                <h2 className="font-black text-indigo-100 tracking-tighter text-lg uppercase">IA Insights</h2>
-                            </div>
-
-                            <div className="space-y-6">
-                                <div className="bg-black/30 p-5 rounded-3xl border border-white/5 backdrop-blur-md">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                                        <p className="text-[10px] text-indigo-300 uppercase tracking-widest font-black">Sugerencia</p>
+                    {profile.role !== 'MECHANIC' && (
+                        <section className="bg-gradient-to-b from-indigo-600/20 to-purple-600/10 border border-indigo-500/30 p-8 rounded-[40px] relative overflow-hidden shadow-2xl">
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-2 bg-indigo-400/20 rounded-xl">
+                                        <BrainCircuit className="text-indigo-400 w-5 h-5" />
                                     </div>
-                                    <p className="text-sm text-slate-300 leading-relaxed font-medium">
-                                        Necesitas pedir **15 Filtros de Aire** para evitar quiebre de stock el viernes.
-                                    </p>
-                                    <button className="mt-4 w-full py-2 bg-indigo-500/20 hover:bg-indigo-500/40 border border-indigo-500/30 rounded-xl text-[10px] font-black text-indigo-100 uppercase transition-all">
-                                        Generar solicitud
-                                    </button>
+                                    <h2 className="font-black text-indigo-100 tracking-tighter text-lg uppercase">IA Insights</h2>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div className="bg-black/30 p-5 rounded-3xl border border-white/5 backdrop-blur-md">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                                            <p className="text-[10px] text-indigo-300 uppercase tracking-widest font-black">Sugerencia</p>
+                                        </div>
+                                        <p className="text-sm text-slate-300 leading-relaxed font-medium">
+                                            Necesitas pedir **15 Filtros de Aire** para evitar quiebre de stock el viernes.
+                                        </p>
+                                        <button className="mt-4 w-full py-2 bg-indigo-500/20 hover:bg-indigo-500/40 border border-indigo-500/30 rounded-xl text-[10px] font-black text-indigo-100 uppercase transition-all">
+                                            Generar solicitud
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-[100px]" />
-                    </section>
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-[100px]" />
+                        </section>
+                    )}
                 </div>
             </div>
         </div>

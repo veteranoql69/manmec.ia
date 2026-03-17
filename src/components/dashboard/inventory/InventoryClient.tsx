@@ -311,18 +311,14 @@ export function InventoryClient({
                                     <h3 className="text-lg font-black text-white mt-1 leading-tight uppercase group-hover:text-blue-400 transition-colors">
                                         {item.name}
                                     </h3>
-                                    <p className="text-[11px] text-slate-500 mt-2 font-mono uppercase tracking-wider">
-                                        {item.barcode || "Sin Código EAN"}
-                                    </p>
-
-                                    <div className="mt-8 flex items-end justify-between">
+                                    <div className="mt-6 flex items-end justify-between">
                                         <div>
-                                            <p className="text-[9px] text-slate-500 uppercase font-black tracking-[0.2em] mb-1">Stock Total</p>
+                                            <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1.5">Stock Disponible</p>
                                             <div className="flex items-baseline gap-2">
-                                                <span className={`text-4xl font-black ${item.total_stock <= item.min_stock ? 'text-red-500' : 'text-white'}`}>
+                                                <span className={`text-6xl tracking-tighter font-black ${item.total_stock <= item.min_stock ? 'text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]'}`}>
                                                     {item.total_stock}
                                                 </span>
-                                                <span className="text-xs text-slate-500 font-bold lowercase">{item.unit}s</span>
+                                                <span className="text-sm text-slate-400 font-bold lowercase">{item.unit}s</span>
                                             </div>
                                         </div>
                                         {item.total_stock <= item.min_stock ? (
@@ -364,19 +360,18 @@ export function InventoryClient({
                                                     <h3 className="text-lg font-black tracking-tight uppercase line-clamp-1 group-hover:text-blue-400 transition-colors">{item.name}</h3>
                                                     <div className="flex gap-2 mt-1">
                                                         {item.sku && <span className="text-xs font-mono text-slate-400 bg-black px-2 py-0.5 rounded-lg border border-white/10">{item.sku}</span>}
-                                                        {item.barcode && <span className="text-xs font-mono text-slate-500 border border-white/5 px-2 py-0.5 rounded-lg">{item.barcode}</span>}
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-6">
-                                                <div className="text-right hidden sm:block">
-                                                    <p className="text-sm font-black text-white flex items-center justify-end gap-1">
-                                                        <span className={isCritical ? 'text-red-500' : 'text-emerald-400'}>
+                                                <div className="text-right flex flex-col justify-center">
+                                                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-0.5">Disp.</p>
+                                                    <p className="flex items-baseline justify-end gap-1.5">
+                                                        <span className={`text-3xl tracking-tighter font-black leading-none ${isCritical ? 'text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 'text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]'}`}>
                                                             {item.total_stock}
                                                         </span>
-                                                        <span className="text-slate-400 font-medium text-xs lowercase"> {item.unit}s en total</span>
+                                                        <span className="text-slate-500 font-bold text-[10px] lowercase">{item.unit}</span>
                                                     </p>
-                                                    <p className="text-xs font-bold text-slate-500">Min. requerido: {item.min_stock}</p>
                                                 </div>
                                                 <div className="p-2 rounded-full bg-black border border-white/10 group-hover:border-blue-500/50 transition-colors">
                                                     {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
