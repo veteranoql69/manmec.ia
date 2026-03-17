@@ -16,7 +16,22 @@ function logWebhook(msg: string) {
  */
 export async function POST(req: NextRequest) {
     try {
-        const payload = await req.json();
+        // --- PARSEO SEGURO DE JSON ---
+        let rawText = "";
+        try {
+            rawText = await req.text();
+        } catch (e: any) {
+            logWebhook(`❌ Falla al leer el cuerpo de la petición como texto: ${e.message}`);
+            return NextResponse.json({ error: "No se pudo leer el cuerpo de la petición" }, { status: 400 });
+        }
+
+        let payload;
+        try {
+            payload = JSON.parse(rawText);
+        } catch (e: any) {
+            logWebhook(`❌ JSON.parse error: ${e.message}. Primeros 200 chars del request: ${rawText.substring(0, 200)}`);
+            return NextResponse.json({ error: "Formato JSON inválido", details: e.message, preview: rawText.substring(0, 200) }, { status: 400 });
+        }
         
         // --- AUTOCORRECCIÓN DE PAYLOAD (n8n/Common Typos) ---
         // A veces n8n añade un espacio al final: "attachments "
