@@ -118,7 +118,8 @@ export async function getCurrentOperations(): Promise<WorkOrderOp[]> {
         throw error;
     }
 
-    return workOrders.map((wo: any) => {
+    // 🔥 FILTRO OPERATIVO: Ocultar Preventivas 'POR ASIGNAR'/'PENDING' del dashboard principal (para evitar el spam del Día 1)
+    return workOrders.filter((wo: any) => !(wo.ot_type === 'PREVENTIVE' && wo.status === 'PENDING')).map((wo: any) => {
         const assignedUser = wo.assigned_user as any;
         const vehicle = wo.vehicle as any;
         const station = wo.station as any;
@@ -153,10 +154,10 @@ export async function getRecentChronology() {
             created_at,
             entry_type,
             user:manmec_users!user_id(full_name),
-            work_order:manmec_work_orders!work_order_id(id, external_id, status)
+            work_order:manmec_work_orders!work_order_id(id, external_id, status, ot_type)
         `)
         .order("created_at", { ascending: false })
-        .limit(30);
+        .limit(300); // 🚀 Traemos 300 eventos para poder filtrar los silencios correctamente en memoria
 
     if (error) {
         console.error("Error fetching timeline:", error);
@@ -165,8 +166,19 @@ export async function getRecentChronology() {
 
     const timelineData = (data || []) as any[];
 
-    return timelineData.map(entry => {
-        // Manejar el caso de que sea un objeto o un array de un solo elemento (común en select de Supabase con inner join)
+    // 🔥 FILTRO CRONOLOGÍA: Censurar la creación masiva de preventivas para no ahogar la caja.
+    const filteredTimeline = timelineData.filter(entry => {
+        const wo = Array.isArray(entry.work_order) ? entry.work_order[0] : entry.work_order;
+        if (!wo) return true;
+        
+        // Si es Preventiva, ignoramos su 'nacimiento' (eventos SYSTEM/CREATED que ensucian)
+        if (wo.ot_type === 'PREVENTIVE' && (entry.entry_type === 'SYSTEM' || entry.entry_type === 'CREATED' || entry.content?.toLowerCase().includes('creada'))) {
+            return false;
+        }
+        return true;
+    }).slice(0, 30); // Solo mandamos los últimos 30 de alto valor al Frontend
+
+    return filteredTimeline.map(entry => {
         const userProfile = Array.isArray(entry.user) ? entry.user[0] : entry.user;
         const workOrder = Array.isArray(entry.work_order) ? entry.work_order[0] : entry.work_order;
 

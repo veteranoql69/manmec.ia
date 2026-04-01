@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import AiChatWidget from "@/components/dashboard/AiChatWidget";
 import MobileNavbar from "@/components/dashboard/MobileNavbar";
+import RealtimeSidebarLink from "@/components/dashboard/RealtimeSidebarLink";
 
 export default async function DashboardLayout({
     children,
@@ -37,7 +38,13 @@ export default async function DashboardLayout({
 
                     <nav className="space-y-1">
                         <SidebarLink href="/dashboard" icon={<LayoutDashboard size={20} />} label="Dashboard" />
-                        <SidebarLink href="/dashboard/ots" icon={<ClipboardList size={20} />} label="Tareas / OTs" />
+                        <RealtimeSidebarLink 
+                            href="/dashboard/ots" 
+                            icon={<ClipboardList size={20} />} 
+                            label="Tareas / OTs" 
+                            listenTable="manmec_work_orders"
+                            badgeColor="bg-blue-500"
+                        />
 
                         <div className="pt-4 pb-2 px-4">
                             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Gestión de Activos</p>
@@ -47,7 +54,13 @@ export default async function DashboardLayout({
                         {profile.role !== "MECHANIC" && (
                             <>
                                 <SidebarLink href="/dashboard/warehouses" icon={<Warehouse size={20} />} label="Bodegas" />
-                                <SidebarLink href="/dashboard/shipments/new" icon={<PackageSearch size={20} />} label="Recibir Carga" />
+                                <RealtimeSidebarLink 
+                                    href="/dashboard/shipments/new" 
+                                    icon={<PackageSearch size={20} />} 
+                                    label="Recibir Carga"
+                                    listenTable="manmec_shipments"
+                                    badgeColor="bg-amber-500" 
+                                />
                                 <SidebarLink href="/dashboard/fleet" icon={<Truck size={20} />} label="Flota / Vehículos" />
 
                                 <div className="pt-4 pb-2 px-4">
