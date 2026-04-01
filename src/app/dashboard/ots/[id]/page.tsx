@@ -15,7 +15,8 @@ import {
     ClipboardList,
     ShieldAlert,
     AlertTriangle,
-    Bot
+    Bot,
+    Wrench
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -321,6 +322,19 @@ export default async function OTDetailPage({ params }: PageProps) {
 
                 {/* Columna Lateral: Logística e IA */}
                 <div className="space-y-8">
+                    {/* Alerta de Calibración Estratégica */}
+                    {ot.ot_type === 'PREVENTIVE' && (ot.metadata as any)?.calibracion?.toLowerCase()?.replace('í', 'i') === 'si' && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 p-6 rounded-[2.5rem] flex items-center gap-5 shadow-[0_0_30px_rgba(16,185,129,0.15)]">
+                            <div className="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30 shrink-0 shadow-inner">
+                                <Wrench className="w-7 h-7 text-emerald-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-emerald-400 uppercase tracking-tighter italic">Requiere Calibración</h3>
+                                <p className="text-[10px] text-emerald-500/80 font-bold uppercase tracking-widest mt-1 leading-tight">Asignar vehículo con equipo de calibración</p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Panel de Gestión de Asignaciones (Solo visible si no está cerrada) */}
                     {!isClosed && (
                         <OTAssignmentManager

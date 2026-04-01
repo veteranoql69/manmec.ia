@@ -470,16 +470,16 @@ export function OTListClient({ initialOts }: Props) {
 
                                             <div className="w-px h-6 bg-white/10" />
 
-                                            <div className="flex flex-col">
-                                                <span className="text-[8px] uppercase tracking-widest text-slate-500 font-bold mb-0.5 flex items-center gap-1">
+                                            <div className="flex flex-col justify-center">
+                                                <span className="text-[8px] uppercase tracking-widest text-slate-500 font-bold mb-1 flex items-center gap-1">
                                                     <Wrench className="w-2.5 h-2.5" /> Calibración
                                                 </span>
                                                 {((ot.metadata as any)?.calibracion?.toLowerCase() === 'si' || (ot.metadata as any)?.calibracion?.toLowerCase() === 'sí') ? (
-                                                    <span className="text-[11px] font-black text-emerald-400 flex items-center gap-1">
-                                                        <CheckCircle2 className="w-3 h-3" /> SÍ
+                                                    <span className="text-sm font-black text-emerald-400 flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-0.5 rounded-md border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.15)] w-fit">
+                                                        <CheckCircle2 className="w-4 h-4" /> SÍ
                                                     </span>
                                                 ) : (
-                                                    <span className="text-[11px] font-black text-slate-500">NO</span>
+                                                    <span className="text-[11px] font-black text-slate-600 mt-1">NO</span>
                                                 )}
                                             </div>
                                         </div>
