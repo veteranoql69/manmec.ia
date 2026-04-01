@@ -132,8 +132,8 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                 {/* Columna Principal: Operación en Terreno */}
                 <div className="lg:col-span-2 space-y-8">
                     {/* List/Table */}
-                    <section className="bg-white/5 border border-white/10 p-1 md:p-8 rounded-[2rem] shadow-2xl overflow-hidden relative group h-full flex flex-col">
-                        <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:opacity-10 transition-opacity">
+                    <section className="bg-white/5 border border-white/10 p-1 md:p-8 rounded-[2rem] shadow-2xl overflow-hidden relative group flex flex-col">
+                        <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:opacity-10 pointer-events-none transition-opacity">
                             <Activity className="w-64 h-64" />
                         </div>
                         
@@ -153,9 +153,9 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-x-auto relative z-10">
+                        <div className="flex-1 overflow-y-auto overflow-x-auto max-h-[500px] sm:max-h-[600px] custom-scrollbar relative z-10 pr-2">
                             {/* Desktop Table View */}
-                            <div className="hidden md:block overflow-x-auto">
+                            <div className="hidden md:block">
                                 <table className="w-full text-left">
                                     <thead className="bg-white/[0.02] text-slate-500 text-[10px] uppercase tracking-widest font-black">
                                         <tr>

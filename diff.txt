@@ -1,0 +1,119 @@
+﻿diff --git a/src/app/globals.css b/src/app/globals.css
+index 382ca14..a139864 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -123,4 +123,26 @@
+   body {
+     @apply bg-background text-foreground;
+   }
++}
++
++/* Custom minimal scrollbar for dashboards */
++@layer utilities {
++  .custom-scrollbar {
++    scrollbar-width: thin;
++    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
++  }
++  .custom-scrollbar::-webkit-scrollbar {
++    width: 6px;
++    height: 6px;
++  }
++  .custom-scrollbar::-webkit-scrollbar-track {
++    background: transparent;
++  }
++  .custom-scrollbar::-webkit-scrollbar-thumb {
++    background-color: rgba(255, 255, 255, 0.1);
++    border-radius: 9999px;
++  }
++  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
++    background-color: rgba(255, 255, 255, 0.2);
++  }
+ }
+\ No newline at end of file
+diff --git a/src/components/dashboard/ChronologyTimeline.tsx b/src/components/dashboard/ChronologyTimeline.tsx
+index bc0071a..fde8697 100644
+--- a/src/components/dashboard/ChronologyTimeline.tsx
++++ b/src/components/dashboard/ChronologyTimeline.tsx
+@@ -27,6 +27,7 @@ interface Activity {
+     type: string;
+     userName: string;
+     otId?: string;
++    externalId?: string | null;
+ }
+ 
+ interface GroupedActivity {
+@@ -97,7 +98,7 @@ export function ChronologyTimeline({ activities }: { activities: Activity[] }) {
+                 Cronolog├¡a
+             </h2>
+ 
+-            <div className="relative space-y-6">
++            <div className="relative space-y-6 max-h-[500px] sm:max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                 {/* Vertical Tree Line */}
+                 <div className="absolute left-[19px] top-4 bottom-4 w-[1px] bg-gradient-to-b from-blue-500/50 via-white/5 to-transparent" />
+ 
+@@ -132,12 +133,17 @@ export function ChronologyTimeline({ activities }: { activities: Activity[] }) {
+                                             onClick={() => hasMultiple && toggleGroup(group.id)}
+                                         >
+                                             <div className="flex justify-between items-start gap-2">
+-                                                <div className="min-w-0">
+-                                                    <p className="text-xs font-bold text-slate-200 leading-relaxed truncate">
+-                                                        <span className="text-blue-400 mr-1">@{group.userName}</span>
+-                                                        {group.items[0].content}
++                                                <div className="min-w-0 pr-4">
++                                                    <p className="text-xs font-medium text-slate-200 leading-relaxed">
++                                                        <span className="text-blue-400 font-bold mr-1">@{group.userName}</span>
++                                                        <span className="text-slate-300">
++                                                            {group.items[0].content || 
++                                                              (group.type === 'STATUS_CHANGE' ? "cambi├│ el estado de la operaci├│n." :
++                                                               group.type === 'NOTE' ? "agreg├│ una nueva nota u observaci├│n." :
++                                                               "actualiz├│ el registro de la orden.")}
++                                                        </span>
+                                                     </p>
+-                                                    <div className="flex items-center gap-2 mt-1.5">
++                                                    <div className="flex items-center gap-2 mt-2">
+                                                         {group.otId && (
+                                                             <Link
+                                                                 href={`/dashboard/ots/${group.otId}`}
+@@ -145,12 +151,12 @@ export function ChronologyTimeline({ activities }: { activities: Activity[] }) {
+                                                                 className="flex items-center gap-1 text-[9px] bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded font-mono text-blue-400 hover:bg-blue-500/20 transition-all group/link"
+                                                                 onClick={(e) => e.stopPropagation()}
+                                                             >
+-                                                                OT: {group.otId.slice(0, 8)}
++                                                                Aviso: {group.items[0].externalId || group.otId.slice(0, 8)}
+                                                                 <ExternalLink className="w-2 h-2 opacity-50 group-hover/link:opacity-100" />
+                                                             </Link>
+                                                         )}
+-                                                        <span className="text-[9px] text-slate-600 uppercase font-black tracking-widest">
+-                                                            {group.type}
++                                                        <span className="text-[9px] text-slate-600 font-black tracking-widest px-1.5 py-0.5 border border-white/5 rounded-md bg-white/5">
++                                                            {group.type.replace('_', ' ')}
+                                                         </span>
+                                                     </div>
+                                                 </div>
+diff --git a/src/components/dashboard/SupervisorDashboardClient.tsx b/src/components/dashboard/SupervisorDashboardClient.tsx
+index 0b838e2..9bd83ca 100644
+--- a/src/components/dashboard/SupervisorDashboardClient.tsx
++++ b/src/components/dashboard/SupervisorDashboardClient.tsx
+@@ -132,8 +132,8 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
+                 {/* Columna Principal: Operaci├│n en Terreno */}
+                 <div className="lg:col-span-2 space-y-8">
+                     {/* List/Table */}
+-                    <section className="bg-white/5 border border-white/10 p-1 md:p-8 rounded-[2rem] shadow-2xl overflow-hidden relative group h-full flex flex-col">
+-                        <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:opacity-10 transition-opacity">
++                    <section className="bg-white/5 border border-white/10 p-1 md:p-8 rounded-[2rem] shadow-2xl overflow-hidden relative group flex flex-col">
++                        <div className="absolute top-0 right-0 p-8 opacity-[0.02] group-hover:opacity-10 pointer-events-none transition-opacity">
+                             <Activity className="w-64 h-64" />
+                         </div>
+                         
+@@ -153,9 +153,9 @@ export function SupervisorDashboardClient({ profile, stats: realStats, currentOp
+                             </div>
+                         </div>
+ 
+-                        <div className="flex-1 overflow-x-auto relative z-10">
++                        <div className="flex-1 overflow-y-auto overflow-x-auto max-h-[500px] sm:max-h-[600px] custom-scrollbar relative z-10 pr-2">
+                             {/* Desktop Table View */}
+-                            <div className="hidden md:block overflow-x-auto">
++                            <div className="hidden md:block">
+                                 <table className="w-full text-left">
+                                     <thead className="bg-white/[0.02] text-slate-500 text-[10px] uppercase tracking-widest font-black">
+                                         <tr>

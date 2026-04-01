@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
             const externalId = findValue(["orden", "aviso", "external_id", "numero"]);
             const esCode = findValue(["e/s", "es_code", "estacion", "sap_store_code", "eds"]);
             const text = findValue(["texto", "breve", "title", "descripcion"]);
+            const calibracion = findValue(["calibracion", "calibración", "calibration"]);
 
             if (!externalId) {
                 console.log("⚠️ Registro ignorado por falta de externalId. Keys detectadas:", Object.keys(item));
@@ -113,7 +114,8 @@ export async function POST(req: NextRequest) {
                 metadata: {
                     tipo_mantenimiento: "PM02",
                     origen: "carga_masiva_csv",
-                    sap_store_code_original: esCode
+                    sap_store_code_original: esCode,
+                    calibracion: calibracion || null
                 },
                 updated_at: new Date().toISOString()
             };

@@ -27,6 +27,7 @@ interface Activity {
     type: string;
     userName: string;
     otId?: string;
+    externalId?: string | null;
 }
 
 interface GroupedActivity {
@@ -97,7 +98,7 @@ export function ChronologyTimeline({ activities }: { activities: Activity[] }) {
                 Cronología
             </h2>
 
-            <div className="relative space-y-6">
+            <div className="relative space-y-6 max-h-[500px] sm:max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                 {/* Vertical Tree Line */}
                 <div className="absolute left-[19px] top-4 bottom-4 w-[1px] bg-gradient-to-b from-blue-500/50 via-white/5 to-transparent" />
 
@@ -132,12 +133,17 @@ export function ChronologyTimeline({ activities }: { activities: Activity[] }) {
                                             onClick={() => hasMultiple && toggleGroup(group.id)}
                                         >
                                             <div className="flex justify-between items-start gap-2">
-                                                <div className="min-w-0">
-                                                    <p className="text-xs font-bold text-slate-200 leading-relaxed truncate">
-                                                        <span className="text-blue-400 mr-1">@{group.userName}</span>
-                                                        {group.items[0].content}
+                                                <div className="min-w-0 pr-4">
+                                                    <p className="text-xs font-medium text-slate-200 leading-relaxed">
+                                                        <span className="text-blue-400 font-bold mr-1">@{group.userName}</span>
+                                                        <span className="text-slate-300">
+                                                            {group.items[0].content || 
+                                                              (group.type === 'STATUS_CHANGE' ? "cambió el estado de la operación." :
+                                                               group.type === 'NOTE' ? "agregó una nueva nota u observación." :
+                                                               "actualizó el registro de la orden.")}
+                                                        </span>
                                                     </p>
-                                                    <div className="flex items-center gap-2 mt-1.5">
+                                                    <div className="flex items-center gap-2 mt-2">
                                                         {group.otId && (
                                                             <Link
                                                                 href={`/dashboard/ots/${group.otId}`}
@@ -145,12 +151,12 @@ export function ChronologyTimeline({ activities }: { activities: Activity[] }) {
                                                                 className="flex items-center gap-1 text-[9px] bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded font-mono text-blue-400 hover:bg-blue-500/20 transition-all group/link"
                                                                 onClick={(e) => e.stopPropagation()}
                                                             >
-                                                                OT: {group.otId.slice(0, 8)}
+                                                                Aviso: {group.items[0].externalId || group.otId.slice(0, 8)}
                                                                 <ExternalLink className="w-2 h-2 opacity-50 group-hover/link:opacity-100" />
                                                             </Link>
                                                         )}
-                                                        <span className="text-[9px] text-slate-600 uppercase font-black tracking-widest">
-                                                            {group.type}
+                                                        <span className="text-[9px] text-slate-600 font-black tracking-widest px-1.5 py-0.5 border border-white/5 rounded-md bg-white/5">
+                                                            {group.type.replace('_', ' ')}
                                                         </span>
                                                     </div>
                                                 </div>

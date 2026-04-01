@@ -19,6 +19,7 @@ import {
     Bot,
     Package,
     ArrowUpRight,
+    Wrench,
 } from "lucide-react";
 import { WorkOrder } from "@/app/dashboard/ots/actions";
 import { PM02ImportModal } from "./PM02ImportModal";
@@ -39,6 +40,10 @@ export function OTListClient({ initialOts }: Props) {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [newClosures, setNewClosures] = useState<Set<string>>(new Set());
     const [activeToast, setActiveToast] = useState<{ id: string, title: string, code: string, type: 'CORRECTIVE' | 'PREVENTIVE' } | null>(null);
+
+    // Filtros Operativos Preventivos
+    const [filterCalibration, setFilterCalibration] = useState(false);
+    const [sortByPreviousDate, setSortByPreviousDate] = useState(false);
 
     // REALTIME SUBSCRIPTION
     useEffect(() => {
@@ -103,7 +108,18 @@ export function OTListClient({ initialOts }: Props) {
 
     // MÉTRICAS (KPIs) - Ahora filtradas por Categoría Maestra
     const stats = useMemo(() => {
-        const categoryOts = ots.filter(o => o.ot_type === mainCategory);
+        const categoryOts = ots.filter(o => {
+            if (o.ot_type !== mainCategory) return false;
+            if (o.ot_type === 'PREVENTIVE') {
+                const referenceDate = new Date(o.created_at);
+                const now = new Date();
+                if (referenceDate.getMonth() !== now.getMonth() || referenceDate.getFullYear() !== now.getFullYear()) {
+                    return false;
+                }
+            }
+            return true;
+        });
+
         return {
             total: categoryOts.length,
             pending: categoryOts.filter(o => o.status === 'PENDING').length,
@@ -112,10 +128,40 @@ export function OTListClient({ initialOts }: Props) {
         };
     }, [ots, mainCategory]);
 
+    const getPreviousPreventiveDate = (ot: WorkOrder) => {
+        if (!ot.station_id) return null;
+        const pastOts = ots.filter(o =>
+            o.ot_type === 'PREVENTIVE' &&
+            o.station_id === ot.station_id &&
+            (o.status === 'COMPLETED' || o.status === 'CLOSED') &&
+            new Date(o.created_at).getTime() < new Date(ot.created_at).getTime()
+        ).sort((a, b) => new Date(b.completed_at || b.updated_at).getTime() - new Date(a.completed_at || a.updated_at).getTime());
+
+        return pastOts.length > 0 ? (pastOts[0].completed_at || pastOts[0].updated_at) : null;
+    };
+
     const filteredOts = useMemo(() => {
         return ots.filter(ot => {
             // 1. Filtro por Categoría Maestra
             if (ot.ot_type !== mainCategory) return false;
+
+            // Filtro "Viaje de Mensualidad" para Preventivos: TODO viaja el día 1
+            if (ot.ot_type === 'PREVENTIVE') {
+                const referenceDate = new Date(ot.created_at);
+                const now = new Date();
+                // Si el mes/año de creación NO es el actual, se oculta (viaja a informes)
+                if (referenceDate.getMonth() !== now.getMonth() || referenceDate.getFullYear() !== now.getFullYear()) {
+                    return false;
+                }
+                
+                // Filtro Rápido: Calibración
+                if (filterCalibration) {
+                    const calValue = (ot.metadata as any)?.calibracion?.toLowerCase();
+                    if (calValue !== 'si' && calValue !== 'sí') {
+                        return false;
+                    }
+                }
+            }
 
             // 2. Filtro por Búsqueda
             const matchesSearch =
@@ -132,8 +178,31 @@ export function OTListClient({ initialOts }: Props) {
                 (activeTab === 'COMPLETED' && (ot.status === 'COMPLETED' || ot.status === 'CLOSED'));
 
             return matchesSearch && matchesTab;
+        }).sort((a, b) => {
+            // Empujar las CERRADAS al fondo operativo
+            const aIsClosed = a.status === 'COMPLETED' || a.status === 'CLOSED';
+            const bIsClosed = b.status === 'COMPLETED' || b.status === 'CLOSED';
+            
+            if (aIsClosed && !bIsClosed) return 1;
+            if (!aIsClosed && bIsClosed) return -1;
+            
+            // Si estamos en la vista de fecha anterior y son de preventivo, ordenar por urgencia histórica
+            if (mainCategory === 'PREVENTIVE' && sortByPreviousDate) {
+                const prevA = getPreviousPreventiveDate(a);
+                const prevB = getPreviousPreventiveDate(b);
+                
+                // Si ambas tienen historial, la más antigua VA PRIMERO (más urgente de visitar)
+                if (prevA && prevB) return new Date(prevA).getTime() - new Date(prevB).getTime();
+                
+                // Si A no tiene, debe ir primero (nunca se ha visitado o no hay registro)
+                if (!prevA && prevB) return -1;
+                if (prevA && !prevB) return 1;
+            }
+
+            // Por defecto, ordenar por fecha más reciente de creación
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
-    }, [ots, search, activeTab, mainCategory]);
+    }, [ots, search, activeTab, mainCategory, filterCalibration, sortByPreviousDate]);
 
     return (
         <div className="space-y-8">
@@ -227,23 +296,43 @@ export function OTListClient({ initialOts }: Props) {
             <div className="flex flex-col space-y-4">
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white/5 p-4 rounded-[2.5rem] border border-white/10 backdrop-blur-md">
                     {/* TABS DE ESTADO */}
-                    <div className="flex items-center gap-1 p-1 bg-black/40 rounded-full w-full md:w-auto">
-                        {(['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETED'] as TabType[]).map((tab) => (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`relative px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab
-                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
-                                    : 'text-slate-500 hover:text-slate-300'
-                                    }`}
-                            >
-                                {tab === 'ALL' ? 'Todos' : tab === 'PENDING' ? 'Espera' : tab === 'IN_PROGRESS' ? 'Proceso' : 'Cerrados'}
-                                
-                                {tab === 'COMPLETED' && newClosures.size > 0 && (
-                                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-black animate-pulse" />
-                                )}
-                            </button>
-                        ))}
+                    <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                        <div className="flex items-center gap-1 p-1 bg-black/40 rounded-full w-full md:w-auto overflow-x-auto custom-scrollbar">
+                            {(['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETED'] as TabType[]).map((tab) => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`relative px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab
+                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                                        : 'text-slate-500 hover:text-slate-300'
+                                        }`}
+                                >
+                                    {tab === 'ALL' ? 'Todos' : tab === 'PENDING' ? 'Espera' : tab === 'IN_PROGRESS' ? 'Proceso' : 'Cerrados'}
+                                    
+                                    {tab === 'COMPLETED' && newClosures.size > 0 && (
+                                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-black animate-pulse" />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* FILTROS RÁPIDOS OPERATIVOS (SOLO PREVENTIVO) */}
+                        {mainCategory === 'PREVENTIVE' && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setSortByPreviousDate(!sortByPreviousDate)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${sortByPreviousDate ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/50 shadow-lg shadow-indigo-900/20' : 'bg-white/5 text-slate-500 border-white/10 hover:bg-white/10'}`}
+                                >
+                                    <Clock className="w-3.5 h-3.5" /> Orden Visita Ant.
+                                </button>
+                                <button
+                                    onClick={() => setFilterCalibration(!filterCalibration)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${filterCalibration ? 'bg-amber-500/20 text-amber-500 border-amber-500/50 shadow-lg shadow-amber-900/20' : 'bg-white/5 text-slate-500 border-white/10 hover:bg-white/10'}`}
+                                >
+                                    <Wrench className="w-3.5 h-3.5" /> Solo Calibración
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-4 w-full md:w-auto">
@@ -283,7 +372,7 @@ export function OTListClient({ initialOts }: Props) {
                                 initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.98 }}
-                                className="bg-white/[0.03] border border-white/10 p-4 pl-6 rounded-[2.2rem] backdrop-blur-md group hover:bg-white/[0.07] transition-all flex items-center gap-6 relative overflow-hidden"
+                                className={`border p-4 pl-6 rounded-[2.2rem] backdrop-blur-md group transition-all flex flex-col md:flex-row md:items-center gap-6 relative overflow-hidden ${ot.status === 'COMPLETED' || ot.status === 'CLOSED' ? (mainCategory === 'PREVENTIVE' ? 'bg-emerald-900/10 border-emerald-500/20 opacity-80 hover:opacity-100' : 'bg-white/[0.01] border-white/5 opacity-60 hover:opacity-100') : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'}`}
                             >
                                 {/* Brillo de Prioridad Lateral (Más discreto) */}
                                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${ot.priority === 'P1' ? 'bg-red-500/40' :
@@ -349,7 +438,7 @@ export function OTListClient({ initialOts }: Props) {
 
                                         {/* SECCIÓN DE REPUESTOS / MATERIALES */}
                                         {ot.materials && ot.materials.length > 0 && (
-                                            <div className="flex items-center gap-2 ml-auto lg:ml-0 pl-4 border-l border-white/5">
+                                            <div className="flex items-center gap-2 ml-auto md:ml-0 pl-1 md:pl-4 md:border-l border-white/5">
                                                 <Package className="w-3.5 h-3.5 text-amber-500/50" />
                                                 <div className="flex flex-wrap gap-1">
                                                     {ot.materials.slice(0, 3).map((m, idx) => (
@@ -364,9 +453,40 @@ export function OTListClient({ initialOts }: Props) {
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* MANTENIMIENTO PREVENTIVO ESPECÍFICO */}
+                                    {ot.ot_type === 'PREVENTIVE' && (
+                                        <div className="flex items-center gap-4 mt-4 bg-black/20 p-3 rounded-xl border border-white/5 w-fit">
+                                            <div className="flex flex-col">
+                                                <span className="text-[8px] uppercase tracking-widest text-slate-500 font-bold mb-0.5 flex items-center gap-1">
+                                                    <Calendar className="w-2.5 h-2.5" /> Preventiva Anterior
+                                                </span>
+                                                <span className="text-[11px] font-black text-slate-300">
+                                                    {getPreviousPreventiveDate(ot)
+                                                        ? new Date(getPreviousPreventiveDate(ot)!).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                                        : 'S/D (Primer registro)'}
+                                                </span>
+                                            </div>
+
+                                            <div className="w-px h-6 bg-white/10" />
+
+                                            <div className="flex flex-col">
+                                                <span className="text-[8px] uppercase tracking-widest text-slate-500 font-bold mb-0.5 flex items-center gap-1">
+                                                    <Wrench className="w-2.5 h-2.5" /> Calibración
+                                                </span>
+                                                {((ot.metadata as any)?.calibracion?.toLowerCase() === 'si' || (ot.metadata as any)?.calibracion?.toLowerCase() === 'sí') ? (
+                                                    <span className="text-[11px] font-black text-emerald-400 flex items-center gap-1">
+                                                        <CheckCircle2 className="w-3 h-3" /> SÍ
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[11px] font-black text-slate-500">NO</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div className="flex items-center gap-5 pl-6 border-l border-white/5 h-full">
+                                <div className="flex md:flex-col items-center gap-5 justify-between md:pl-6 md:border-l border-white/5 h-full mt-4 md:mt-0 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0">
                                     <div className="flex flex-col items-end gap-1">
                                         <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${ot.status === 'COMPLETED' || ot.status === 'CLOSED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
                                             ot.status === 'IN_PROGRESS' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' :
@@ -390,11 +510,29 @@ export function OTListClient({ initialOts }: Props) {
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="py-32 text-center bg-white/5 rounded-[4rem] border border-dashed border-white/10"
+                    className="py-24 md:py-32 px-4 text-center bg-white/5 rounded-[4rem] border border-dashed border-white/10"
                 >
-                    <Filter className="w-16 h-16 mx-auto mb-6 text-slate-700 opacity-20" />
-                    <h3 className="text-2xl font-black text-slate-500 lowercase tracking-tighter italic">NADA POR AQUÍ...</h3>
-                    <p className="text-slate-600 text-sm mt-2 font-medium">Ajusta los filtros para explorar el historial de 2 años.</p>
+                    {mainCategory === 'PREVENTIVE' ? (
+                        <>
+                            <Calendar className="w-16 h-16 mx-auto mb-6 text-emerald-500 opacity-50" />
+                            <h3 className="text-2xl md:text-3xl font-black text-emerald-500 uppercase tracking-tighter">NUEVO MES, NUEVA OPERACIÓN</h3>
+                            <p className="text-slate-400 text-sm mt-3 font-medium max-w-md mx-auto leading-relaxed">
+                                El historial del mes pasado ya fue enviado a informes. Para iniciar el ciclo operativo actual, por favor importa el nuevo archivo de **Mantenimiento Preventivo (PM02)**.
+                            </p>
+                            <button
+                                onClick={() => setIsImportModalOpen(true)}
+                                className="mt-8 bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-4 rounded-full text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-900/40 transition-all border border-emerald-500/50 flex items-center gap-2 mx-auto hover:scale-105 active:scale-95"
+                            >
+                                <Plus className="w-4 h-4" /> IMPORTAR OTs DE ESTE MES
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <Filter className="w-16 h-16 mx-auto mb-6 text-slate-700 opacity-20" />
+                            <h3 className="text-2xl font-black text-slate-500 lowercase tracking-tighter italic">NADA POR AQUÍ...</h3>
+                            <p className="text-slate-600 text-sm mt-2 font-medium">Ajusta los filtros para explorar tu historial.</p>
+                        </>
+                    )}
                 </motion.div>
             )}
 
