@@ -11,7 +11,8 @@ import {
     Settings,
     PackageSearch,
     Users,
-    Warehouse
+    Warehouse,
+    LineChart
 } from "lucide-react";
 import AiChatWidget from "@/components/dashboard/AiChatWidget";
 import MobileNavbar from "@/components/dashboard/MobileNavbar";
@@ -45,6 +46,7 @@ export default async function DashboardLayout({
                             listenTable="manmec_work_orders"
                             badgeColor="bg-blue-500"
                         />
+                        <SidebarLink href="/dashboard/reports" icon={<LineChart size={20} className="text-emerald-400" />} label="Informes Operativos" />
 
                         <div className="pt-4 pb-2 px-4">
                             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Gestión de Activos</p>
