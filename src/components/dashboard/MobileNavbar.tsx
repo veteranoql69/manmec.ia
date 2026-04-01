@@ -15,7 +15,8 @@ import {
     Users, 
     PackageSearch,
     Settings,
-    LogOut
+    LogOut,
+    LineChart
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -46,6 +47,7 @@ export default function MobileNavbar({ profile }: MobileNavbarProps) {
     const menuItems = [
         { href: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
         { href: "/dashboard/ots", icon: <ClipboardList size={20} />, label: "Tareas / OTs" },
+        { href: "/dashboard/reports", icon: <LineChart size={20} className="text-emerald-400" />, label: "Informes Operativos" },
         { href: "/dashboard/tools", icon: <Wrench size={20} />, label: "Herramientas", category: "Activos" },
         { href: "/dashboard/inventory", icon: <Box size={20} />, label: "Insumos / Stock" },
     ];
