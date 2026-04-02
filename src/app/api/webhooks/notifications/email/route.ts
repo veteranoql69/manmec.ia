@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseEmailWithIA } from "@/lib/ai/email-parser";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = 'force-dynamic';
 
@@ -248,7 +249,7 @@ async function processEmailUnit(
             const metadata = (parsedData.metadata || {}) as any;
             const tipoMtto = String(metadata.tipo_mantenimiento || 'UNKNOWN').toUpperCase();
             
-            let matchQuery = supabase.from("manmec_work_orders").select("id").eq("organization_id", org.id);
+            let matchQuery = supabase.from("manmec_work_orders").select("id, vehicle_id").eq("organization_id", org.id);
             const filterOr = [];
             if (parsedData.external_id) {
                 filterOr.push(`external_id.eq.${parsedData.external_id}`, `sap_order_id.eq.${parsedData.external_id}`);
@@ -310,29 +311,65 @@ async function processEmailUnit(
                             item_id: item.id,
                             quantity: Number(rep.cantidad)
                         });
-                        // Autodeducción (Bodega Central por defecto)
-                        const { data: centralWh } = await supabase.from("manmec_warehouses")
-                            .select("id").eq("organization_id", org.id).eq("type", 'FIXED').limit(1).maybeSingle();
-                        if (centralWh) {
-                            await supabase.from("manmec_inventory_movements").insert({
+                        // Prioridad a Bodega Móvil del vehículo asignado a la OT (para reflejar consumo real en terreno)
+                        // Si no tiene, fallback a Bodega Central
+                        let targetWarehouseId = null;
+                        let warehouseName = "Desconocida";
+                        
+                        if (existingWo?.vehicle_id) {
+                            const { data: mobileWh } = await supabase.from("manmec_warehouses")
+                                .select("id, name").eq("organization_id", org.id).eq("vehicle_id", existingWo.vehicle_id).limit(1).maybeSingle();
+                            if (mobileWh) {
+                                targetWarehouseId = mobileWh.id;
+                                warehouseName = mobileWh.name;
+                            }
+                        }
+
+                        if (!targetWarehouseId) {
+                            const { data: centralWh } = await supabase.from("manmec_warehouses")
+                                .select("id, name").eq("organization_id", org.id).eq("type", 'FIXED').limit(1).maybeSingle();
+                            if (centralWh) {
+                                targetWarehouseId = centralWh.id;
+                                warehouseName = centralWh.name;
+                            }
+                        }
+
+                        if (targetWarehouseId) {
+                            const { error: moveError } = await supabase.from("manmec_inventory_movements").insert({
                                 item_id: item.id,
-                                warehouse_id: centralWh.id,
+                                warehouse_id: targetWarehouseId,
                                 work_order_id: targetWoId,
                                 user_id: finalUserId,
                                 type: 'OUT',
                                 quantity: Number(rep.cantidad),
-                                reason: `IA Auto-Deduction (${parsedData.external_id})`
+                                reason: `IA Auto-Deduction (${parsedData.external_id}) via Email`
                             });
+                            
+                            // Si la BD rebota el insert (ej: restricciones estrictas u otros problemas funcionales), alertamos.
+                            if (moveError) {
+                                await supabase.from("manmec_work_order_timeline").insert({
+                                    work_order_id: targetWoId,
+                                    user_id: finalUserId,
+                                    entry_type: 'warning',
+                                    content: `⚠️ Falló descuento de Repuesto en ${warehouseName} por error BD: ${moveError.message}`
+                                });
+                            }
                         }
                     }
                 }
-                const timelineMsg = `${wasReactive ? '⚠️ OT Reactiva. ' : ''}Cerrada vía email. ${repuestos.length} repuestos procesados.`;
+                const timelineMsg = `${wasReactive ? '⚠️ OT Reactiva. ' : ''}Cerrada vía email. ${repuestos.length} repuestos detectados y pasados a módulo de descuentos.`;
                 await supabase.from("manmec_work_order_timeline").insert({
                     work_order_id: targetWoId,
                     user_id: finalUserId,
                     entry_type: 'note',
                     content: timelineMsg
                 });
+
+                // REVALIDAR CACHE DE NEXT.JS
+                // Esto asegura que si el usuario tiene abierta la OT o entra justo después, vea los materiales
+                revalidatePath(`/dashboard/ots/${targetWoId}`);
+                revalidatePath("/dashboard/ots");
+
                 finalResult = { type: 'OT_CLOSED', id: targetWoId, external_id: parsedData.external_id, materials: repuestos.length };
             }
         }

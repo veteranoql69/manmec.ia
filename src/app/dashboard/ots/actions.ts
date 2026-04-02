@@ -42,7 +42,8 @@ export async function getWorkOrders() {
     const profile = await requireRole("MECHANIC");
     const supabase = await createClient();
 
-    let query = supabase
+    const adminClient = createAdminClient();
+    let query = adminClient
         .from("manmec_work_orders")
         .select(`
             *,
@@ -122,18 +123,18 @@ export async function getWorkOrderDetail(id: string) {
         console.error(`[ACTIONS] Error fetching team for OT ${id}:`, teamError.message || teamError);
     }
 
-    // 3. Obtener Materiales/Repuestos utilizados
-    const { data: materials } = await supabase
+    // 3. Obtener Materiales/Repuestos utilizados (Usamos adminClient para bypass de RLS de auditoría IA)
+    const { data: materials } = await adminClient
         .from("manmec_work_order_materials")
         .select(`
             quantity,
             notes,
-            item:manmec_inventory_items!item_id(name, sku, unit)
+            item:manmec_inventory_items(name, sku, unit)
         `)
         .eq("work_order_id", id);
 
-    // 3.5 Obtener Timeline (Historial)
-    const { data: timeline } = await supabase
+    // 3.5 Obtener Timeline (Historial) - Usamos adminClient para ver logs de IA
+    const { data: timeline } = await adminClient
         .from("manmec_work_order_timeline")
         .select(`
             *,
@@ -224,7 +225,7 @@ export async function getWorkOrderDetail(id: string) {
         materials: materials || [],
         timeline: timeline || [],
         mobile_warehouse: mobileWarehouse
-    } as unknown;
+    } as any;
 }
 
 /**
