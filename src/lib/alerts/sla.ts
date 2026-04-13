@@ -3,6 +3,10 @@ export interface OrgAlertRulesConfig {
     alert_window_days: Record<string, number>;
     reminder_thresholds_pct?: number[];
     reminder_thresholds_absolute?: Record<string, number[]>;
+    working_hours?: { start: string; end: string; timezone?: string };
+    silence_hours?: { start: string; end: string; timezone?: string };
+    anomaly_min_samples?: number;
+    escalation_timeouts_min?: Record<string, number>;
 }
 
 export interface MinimalWorkOrder {

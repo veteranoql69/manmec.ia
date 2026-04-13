@@ -1,4 +1,4 @@
-import { genAI, VISION_MODEL } from "./gemini";
+import { getGenAI, VISION_MODEL } from "./gemini";
 
 export interface OcrShipmentItem {
     description: string;
@@ -22,6 +22,7 @@ export async function processDispatchNote(
     imageBuffer: Buffer,
     mimeType: string
 ): Promise<OcrShipmentResult> {
+    const genAI = getGenAI();
     if (!genAI) {
         throw new Error("Gemini AI no está configurada. Falta GEMINI_API_KEY.");
     }

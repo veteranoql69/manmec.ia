@@ -4,7 +4,7 @@ import { getInventoryStock, getWorkOrders, getServiceStations, getMechanicsStatu
 
 // Instancia global diferida para evitar problemas de hoisting con variables de entorno
 let _genAI: GoogleGenerativeAI | null = null;
-function getGenAI() {
+export function getGenAI() {
     if (!_genAI) {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
