@@ -86,6 +86,7 @@ model ManmecOrganization {
   allowed_domains           String[]  @default([])
   allowed_email_domains     String[]  @default([])
   client_notification_email String?   @default("bodega@manmec.cl")
+  timezone                  String    @default("America/Santiago")
   settings                  Json?     @default("{}")
   ai_settings               Json?     @default("{}")
   created_at                DateTime  @default(now()) @db.Timestamptz(6)
@@ -706,11 +707,17 @@ model ManmecAiAction {
   related_entity_id   String?              @db.Uuid
   is_acknowledged     Boolean              @default(false)
   acknowledged_by     String?              @db.Uuid
+  alert_key           String?              @unique
+  sent_at             DateTime?            @db.Timestamptz(6)
+  retry_count         Int                  @default(0)
+  telegram_error      String?
   created_at          DateTime             @default(now()) @db.Timestamptz(6)
 
   organization ManmecOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   acknowledger ManmecUser?        @relation(fields: [acknowledged_by], references: [id])
 
+  @@index([alert_key])
+  @@index([organization_id, created_at(sort: Desc)])
   @@map("manmec_ai_actions")
 }
 

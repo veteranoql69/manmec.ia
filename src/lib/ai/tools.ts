@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import { Client } from "pg";
 
 /**
  * Filtra los datos sensibles para el modelo de IA
@@ -16,15 +15,10 @@ function getSupabaseAdmin() {
 }
 
 /**
- * Ejecuta una consulta SQL de solo lectura (READ-ONLY) contra la base de datos.
- * Esta es la herramienta principal del Agente IA-SQL.
+ * Ejecuta una consulta SQL de solo lectura (READ-ONLY) contra la base de datos vía Supabase RPC.
+ * Esta es la herramienta principal del Agente IA-SQL y funciona por el puerto 443.
  */
 export async function executeReadOnlyQuery(organization_id: string, sql: string) {
-    if (!process.env.DATABASE_URL) {
-        console.error("[AI-SQL] CRITICAL: DATABASE_URL is missing in process.env");
-        return { error: "Configuración de base de datos ausente." };
-    }
-
     // Seguridad básica: Solo permitir SELECT
     const normalizedSql = sql.trim().toUpperCase();
     if (!normalizedSql.startsWith("SELECT")) {
@@ -35,35 +29,28 @@ export async function executeReadOnlyQuery(organization_id: string, sql: string)
     const forbiddenKeywords = ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE"];
     for (const keyword of forbiddenKeywords) {
         if (normalizedSql.includes(keyword + " ") || normalizedSql.includes(" " + keyword)) {
-          return { error: `Violación de seguridad: palabra prohibida '${keyword}' detectada.` };
+            return { error: `Violación de seguridad: palabra prohibida '${keyword}' detectada.` };
         }
     }
 
-    const client = new Client({
-        connectionString: process.env.DATABASE_URL,
-        ssl: {
-            rejectUnauthorized: false
-        },
-        connectionTimeoutMillis: 10000,
-    });
+    const supabase = getSupabaseAdmin();
 
     try {
-        console.log(`[AI-SQL] Intentando conectar a DB...`);
-        await client.connect();
+        console.log(`[AI-SQL] Ejecutando vía RPC: ${sql.substring(0, 100)}...`);
         
-        console.log(`[AI-SQL] Conexión establecida. Ejecutando: ${sql.substring(0, 100)}...`);
-        const res = await client.query(sql);
-        
-        return res.rows;
-    } catch (error: any) {
-        console.error("[AI-SQL ERROR EN EXECUTE]", error);
-        return { error: `Error de base de datos: ${error.message}` };
-    } finally {
-        try {
-            await client.end();
-        } catch (e) {
-            console.error("[AI-SQL] Error al cerrar conexión", e);
+        const { data, error } = await supabase.rpc('execute_ai_query', { 
+            sql_query: sql 
+        });
+
+        if (error) {
+            console.error("[AI-SQL RPC ERROR]", error);
+            return { error: `Error de base de datos: ${error.message}` };
         }
+        
+        return data || [];
+    } catch (error: any) {
+        console.error("[AI-SQL CRITICAL ERROR]", error);
+        return { error: `Error crítico de conexión: ${error.message}` };
     }
 }
 

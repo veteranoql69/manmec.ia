@@ -2,8 +2,20 @@ import { GoogleGenerativeAI, Tool, SchemaType, Part } from "@google/generative-a
 import { generateSystemPrompt } from "./prompts";
 import { getInventoryStock, getWorkOrders, getServiceStations, getMechanicsStatus, executeReadOnlyQuery } from "./tools";
 
-export const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy_key_for_build');
-export const VISION_MODEL = "gemini-1.5-flash"; // Modelo para procesamiento de imágenes/PDFs
+// Instancia global diferida para evitar problemas de hoisting con variables de entorno
+let _genAI: GoogleGenerativeAI | null = null;
+function getGenAI() {
+    if (!_genAI) {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            console.error("CRITICAL: GEMINI_API_KEY is missing in process.env");
+        }
+        _genAI = new GoogleGenerativeAI(apiKey || 'dummy_key_for_build');
+    }
+    return _genAI;
+}
+
+export const VISION_MODEL = "gemini-flash-latest"; // Actualizado a modelo disponible y probado
 
 /**
  * Define las herramientas disponibles para Gemini (Agente IA-SQL)
@@ -17,9 +29,9 @@ const tools: Tool[] = [
                 parameters: {
                     type: SchemaType.OBJECT,
                     properties: {
-                        sql: { 
-                            type: SchemaType.STRING, 
-                            description: "Instrucción SQL SELECT válida. Ejemplo: SELECT * FROM manmec_work_orders WHERE organization_id = '...' AND status != 'COMPLETED'" 
+                        sql: {
+                            type: SchemaType.STRING,
+                            description: "Instrucción SQL SELECT válida. Ejemplo: SELECT * FROM manmec_work_orders WHERE organization_id = '...' AND status != 'COMPLETED'"
                         }
                     },
                     required: ["sql"]
@@ -39,15 +51,18 @@ export async function generateAiResponse(
     audioBuffer?: Buffer // Nuevo parámetro opcional para mensajes de voz
 ) {
     const modelMatrix = (orgSettings as any)?.model_matrix || {};
-    const chatModelName = modelMatrix.chat || "models/gemini-1.5-flash";
-    const voiceModelName = modelMatrix.voice || "models/gemini-1.5-flash";
+    const chatModelName = modelMatrix.chat || "models/gemini-2.5-flash-native-audio-latest";
+    const voiceModelName = modelMatrix.voice || "models/gemini-2.5-flash-native-audio-latest";
 
     // Si hay audio, usamos el modelo especializado en voz, de lo contrario el de chat
     const activeModelName = audioBuffer ? voiceModelName : chatModelName;
 
-    const model = genAI.getGenerativeModel({
+    const model = getGenAI().getGenerativeModel({
         model: activeModelName,
-        systemInstruction: generateSystemPrompt(orgSettings),
+        systemInstruction: generateSystemPrompt({
+            ...orgSettings,
+            organization_id: userContext.organization_id
+        }),
         tools,
     });
 
@@ -76,19 +91,21 @@ export async function generateAiResponse(
         let response = result.response;
 
         // Loop de manejo de llamadas a funciones (Function Calling)
-        const call = response.functionCalls()?.[0];
+        let toolCalls = response.functionCalls();
+        let loopCount = 0;
 
-        if (call) {
+        while (toolCalls?.length && loopCount < 5) {
+            const call = toolCalls[0];
             const { name, args } = call;
             let functionResult: unknown;
 
-            console.log(`[AI-SQL] Llamada a herramienta: ${name}`, args);
+            console.log(`[AI-SQL] [Iteración ${loopCount + 1}] Llamada a herramienta: ${name}`, args);
 
             if (name === "executeReadOnlyQuery") {
                 const typedArgs = args as { sql: string };
                 functionResult = await executeReadOnlyQuery(userContext.organization_id, typedArgs.sql);
             } else {
-                // Fallback para herramientas antiguas si se intentan llamar (opcional)
+                // Fallback para herramientas antiguas
                 const typedArgs = args as Record<string, string>;
                 switch (name) {
                     case "getInventoryStock":
@@ -104,18 +121,21 @@ export async function generateAiResponse(
                         functionResult = await getMechanicsStatus(userContext.organization_id);
                         break;
                     default:
-                        throw new Error(`Herramienta no encontrada: ${name}`);
+                        functionResult = { error: `Herramienta no encontrada: ${name}` };
                 }
             }
 
-            // Enviar el resultado de la función de vuelta a Gemini para que redacte la respuesta final
+            // Enviar el resultado de la función de vuelta a Gemini
             result = await chat.sendMessage([{
                 functionResponse: {
                     name,
                     response: { content: functionResult }
                 }
             }] as unknown as Part[]);
+
             response = result.response;
+            toolCalls = response.functionCalls();
+            loopCount++;
         }
 
         return response.text();

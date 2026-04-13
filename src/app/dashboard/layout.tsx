@@ -12,7 +12,8 @@ import {
     PackageSearch,
     Users,
     Warehouse,
-    LineChart
+    LineChart,
+    Bell
 } from "lucide-react";
 import AiChatWidget from "@/components/dashboard/AiChatWidget";
 import MobileNavbar from "@/components/dashboard/MobileNavbar";
@@ -70,6 +71,7 @@ export default async function DashboardLayout({
                                 </div>
                                 <SidebarLink href="/dashboard/ai-logs" icon={<BrainCircuit size={20} className="text-blue-400" />} label="Logs IA (Beta)" />
                                 <SidebarLink href="/dashboard/settings/ai" icon={<BrainCircuit size={20} />} label="Asistente IA" />
+                                <SidebarLink href="/dashboard/settings/alerts" icon={<Bell size={20} className="text-amber-400" />} label="Alertas Proactivas" />
                                 <SidebarLink href="/dashboard/stations" icon={<LayoutDashboard size={20} />} label="Estaciones de Servicio" />
                                 <SidebarLink href="/dashboard/team" icon={<Users size={20} />} label="Equipo de trabajo" />
                             </>
