@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseEmailWithIA } from "@/lib/ai/email-parser";
 import { revalidatePath } from "next/cache";
+import { createOrgNotification } from "@/lib/notifications/create";
 
 export const dynamic = 'force-dynamic';
 
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
         const { data: adminUser } = await supabase.from("manmec_users").select("id").eq("organization_id", org.id).limit(1).maybeSingle();
         const finalUserId = adminUser?.id || 'c09534c9-cbd4-4bf3-bb9a-7acdd30abf98';
         const aiSettings = (org.ai_settings as any) || {};
-        const visionModel = aiSettings.model_matrix?.vision || "models/gemini-1.5-flash";
+        const visionModel = aiSettings.model_matrix?.vision || "models/gemini-2.5-flash";
 
         logWebhook(`🧠 Procesando correo (${org.name}): ${validAttachments.length} adjuntos válidos.`);
 
@@ -366,6 +367,7 @@ async function processEmailUnit(
                 });
 
                 // REVALIDAR CACHE DE NEXT.JS
+                // Las notificaciones de descuento las genera el trigger de BD (015_stock_deduction_notifications.sql)
                 // Esto asegura que si el usuario tiene abierta la OT o entra justo después, vea los materiales
                 revalidatePath(`/dashboard/ots/${targetWoId}`);
                 revalidatePath("/dashboard/ots");

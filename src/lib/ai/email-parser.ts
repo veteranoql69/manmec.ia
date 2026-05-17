@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI, Part } from "@google/generative-ai";
+import { getLangfuse } from "./langfuse-client";
 
 // Parche ligero (stub) para cargar correctamente pdf-parse (pdfjs-dist)
 // en entornos Server-Side y evitar crasheos de Turbopack por falta de DOMMatrix.
@@ -48,7 +49,7 @@ export interface ParsedEmailData {
   };
 }
 
-export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer, modelName: string = "models/gemini-1.5-flash", subject: string = ""): Promise<ParsedEmailData> {
+export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer, modelName: string = "models/gemini-2.5-flash", subject: string = ""): Promise<ParsedEmailData> {
   const model = genAI.getGenerativeModel({
     model: modelName,
   });
@@ -152,6 +153,23 @@ export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer, mode
     } as any);
   }
 
+  const langfuse = getLangfuse();
+  const trace = langfuse.trace({
+    name: "email-parser",
+    metadata: {
+      model: modelName,
+      subject,
+      has_pdf: !!pdfBuffer,
+      content_preview: content.slice(0, 200),
+    },
+  });
+
+  const generation = trace.generation({
+    name: "gemini-email-parse",
+    model: modelName,
+    input: { subject, content_preview: content.slice(0, 500), has_pdf: !!pdfBuffer },
+  });
+
   try {
     const result = await model.generateContent({
       contents: [{ role: "user", parts: parts as unknown as Part[] }],
@@ -162,8 +180,20 @@ export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer, mode
     });
 
     const text = result.response.text();
-    return JSON.parse(text) as ParsedEmailData;
+    const parsed = JSON.parse(text) as ParsedEmailData;
+    const usage = result.response.usageMetadata;
+
+    generation.end({
+      output: { type: parsed.type, external_id: parsed.external_id, repuestos_count: parsed.metadata?.repuestos?.length ?? 0 },
+      usage: usage ? { input: usage.promptTokenCount, output: usage.candidatesTokenCount, total: usage.totalTokenCount } : undefined,
+    });
+    await langfuse.flushAsync();
+
+    return parsed;
   } catch (error: any) {
+    generation.end({ level: "ERROR", statusMessage: String(error) });
+    await langfuse.flushAsync();
+
     if (pdfBuffer && error.message && error.message.includes("document has no pages")) {
       return parseEmailWithIA(content, undefined, modelName, subject);
     }

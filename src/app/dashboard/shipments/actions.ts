@@ -4,6 +4,7 @@ import { analyzeShipmentImage } from "@/lib/ai/vision";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { createOrgNotification } from "@/lib/notifications/create";
 
 export interface ShipmentItemInput {
     description: string;
@@ -216,6 +217,21 @@ export async function saveShipment(data: {
 
         revalidatePath("/dashboard/inventory");
         revalidatePath("/dashboard/shipments");
+
+        // Notificar a supervisores y superiores sobre la nueva guía recibida
+        await createOrgNotification({
+            organization_id: profile.organization_id!,
+            type: "shipment_received",
+            title: `Guía #${data.dispatch_note_number} recibida`,
+            body: `${data.supplier_name || "Proveedor"} — ${processedItems.length} ítem(s) ingresados al stock`,
+            payload: {
+                supplier_name: data.supplier_name ?? null,
+                dispatch_note: data.dispatch_note_number,
+                item_count: processedItems.length,
+                shipment_id: shipment.id,
+            },
+            target_roles: ["COMPANY_ADMIN", "MANAGER", "SUPERVISOR"],
+        });
 
         return { success: true, shipmentId: shipment.id };
 

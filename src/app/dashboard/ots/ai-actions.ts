@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getLangfuse } from "@/lib/ai/langfuse-client";
 
 export async function generateLogisticsSuggestion(otId: string, currentVehicleId: string) {
     const profile = await requireRole("SUPERVISOR");
@@ -132,11 +133,35 @@ Devuelve EXCLUSIVAMENTE un arreglo JSON válido (sin texto antes ni después, si
     if (!apiKey) throw new Error("Gemini API Key faltante en variables de entorno");
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    const langfuse = getLangfuse();
+    const trace = langfuse.trace({
+        name: "logistics-suggestion",
+        userId: profile.organization_id,
+        metadata: {
+            ot_id: otId,
+            vehicle_id: currentVehicleId,
+            ot_title: currentOt.title,
+            historical_ots_with_materials: totalHistoricalOtsWithMaterials,
+        },
+    });
+
+    const generation = trace.generation({
+        name: "gemini-logistics",
+        model: "gemini-2.5-flash",
+        input: {
+            title: currentOt.title,
+            description: currentOt.description,
+            historical_summary: Object.values(usageMap).slice(0, 10),
+            current_stock_items: Object.keys(currentStockMap).length,
+        },
+    });
 
     try {
         const result = await model.generateContent(prompt);
         let text = result.response.text().trim();
+        const usage = result.response.usageMetadata;
 
         // Limpiando posibles marcadores de bloque markdown
         if (text.startsWith("\`\`\`json")) text = text.substring(7);
@@ -144,8 +169,17 @@ Devuelve EXCLUSIVAMENTE un arreglo JSON válido (sin texto antes ni después, si
         if (text.endsWith("\`\`\`")) text = text.substring(0, text.length - 3);
 
         const parsed = JSON.parse(text);
+
+        generation.end({
+            output: parsed,
+            usage: usage ? { input: usage.promptTokenCount, output: usage.candidatesTokenCount, total: usage.totalTokenCount } : undefined,
+        });
+        await langfuse.flushAsync();
+
         return { success: true, suggestions: parsed };
     } catch (e: unknown) {
+        generation.end({ level: "ERROR", statusMessage: String(e) });
+        await langfuse.flushAsync();
         console.error("Error procesando IA:", e);
         return { success: false, error: "Error al generar predicción IA." };
     }

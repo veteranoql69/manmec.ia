@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, Tool, SchemaType, Part } from "@google/generative-ai";
 import { generateSystemPrompt } from "./prompts";
 import { getInventoryStock, getWorkOrders, getServiceStations, getMechanicsStatus, executeReadOnlyQuery } from "./tools";
+import { getLangfuse } from "./langfuse-client";
 
 // Instancia global diferida para evitar problemas de hoisting con variables de entorno
 let _genAI: GoogleGenerativeAI | null = null;
@@ -86,6 +87,24 @@ export async function generateAiResponse(
         });
     }
 
+    const langfuse = getLangfuse();
+    const trace = langfuse.trace({
+        name: audioBuffer ? "telegram-voice" : "telegram-chat",
+        userId: userContext.organization_id,
+        metadata: {
+            user_name: userContext.full_name,
+            role: userContext.role,
+            model: activeModelName,
+        },
+        input: message || "(mensaje de voz)",
+    });
+
+    const generation = trace.generation({
+        name: "gemini-response",
+        model: activeModelName,
+        input: contextEnhancedMessage,
+    });
+
     try {
         let result = await chat.sendMessage(promptParts as unknown as Part[]);
         let response = result.response;
@@ -93,6 +112,7 @@ export async function generateAiResponse(
         // Loop de manejo de llamadas a funciones (Function Calling)
         let toolCalls = response.functionCalls();
         let loopCount = 0;
+        const sqlQueries: string[] = [];
 
         while (toolCalls?.length && loopCount < 5) {
             const call = toolCalls[0];
@@ -103,9 +123,12 @@ export async function generateAiResponse(
 
             if (name === "executeReadOnlyQuery") {
                 const typedArgs = args as { sql: string };
+                sqlQueries.push(typedArgs.sql);
+
+                const toolSpan = trace.span({ name: `sql-query-${loopCount + 1}`, input: typedArgs.sql });
                 functionResult = await executeReadOnlyQuery(userContext.organization_id, typedArgs.sql);
+                toolSpan.end({ output: functionResult });
             } else {
-                // Fallback para herramientas antiguas
                 const typedArgs = args as Record<string, string>;
                 switch (name) {
                     case "getInventoryStock":
@@ -125,7 +148,6 @@ export async function generateAiResponse(
                 }
             }
 
-            // Enviar el resultado de la función de vuelta a Gemini
             result = await chat.sendMessage([{
                 functionResponse: {
                     name,
@@ -138,8 +160,24 @@ export async function generateAiResponse(
             loopCount++;
         }
 
-        return response.text();
+        const finalText = response.text();
+        const usage = response.usageMetadata;
+
+        generation.end({
+            output: finalText,
+            usage: usage ? {
+                input: usage.promptTokenCount,
+                output: usage.candidatesTokenCount,
+                total: usage.totalTokenCount,
+            } : undefined,
+            metadata: { sql_queries: sqlQueries, tool_call_count: loopCount },
+        });
+
+        await langfuse.flushAsync();
+        return finalText;
     } catch (error: unknown) {
+        generation.end({ level: "ERROR", statusMessage: String(error) });
+        await langfuse.flushAsync();
         console.error("[AI ERROR]", error);
         return "Lo siento, tuve un problema procesando tu solicitud. Por favor intenta de nuevo en unos momentos.";
     }

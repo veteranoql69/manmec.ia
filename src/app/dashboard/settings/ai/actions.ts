@@ -26,9 +26,9 @@ export async function saveAiSettings(orgId: string, formData: FormData) {
         communication_style: formData.get("communication_style") || "formal",
         extra_instructions: formData.get("extra_instructions") || "",
         model_matrix: {
-            chat: formData.get("model_chat") || "models/gemini-1.5-flash",
-            voice: formData.get("model_voice") || "models/gemini-1.5-flash",
-            vision: formData.get("model_vision") || "models/gemini-1.5-flash",
+            chat: formData.get("model_chat") || "models/gemini-2.5-flash",
+            voice: formData.get("model_voice") || "models/gemini-2.5-flash",
+            vision: formData.get("model_vision") || "models/gemini-2.5-flash",
         }
     };
 

@@ -39,9 +39,9 @@ export function AiSettingsForm({ initialSettings, orgId }: AiSettingsFormProps) 
         communication_style: (initialSettings?.communication_style as string) || "formal",
         extra_instructions: (initialSettings?.extra_instructions as string) || "",
         model_matrix: {
-            chat: initialSettings?.model_matrix?.chat || "models/gemini-1.5-flash",
-            voice: initialSettings?.model_matrix?.voice || "models/gemini-1.5-flash",
-            vision: initialSettings?.model_matrix?.vision || "models/gemini-1.5-flash",
+            chat: initialSettings?.model_matrix?.chat || "models/gemini-2.5-flash",
+            voice: initialSettings?.model_matrix?.voice || "models/gemini-2.5-flash",
+            vision: initialSettings?.model_matrix?.vision || "models/gemini-2.5-flash",
         }
     });
 
