@@ -2,22 +2,24 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-    Menu, 
-    X, 
-    BrainCircuit, 
-    LayoutDashboard, 
-    ClipboardList, 
-    Wrench, 
-    Box, 
-    Warehouse, 
-    Truck, 
-    Users, 
+import {
+    Menu,
+    X,
+    BrainCircuit,
+    LayoutDashboard,
+    ClipboardList,
+    Wrench,
+    Box,
+    Warehouse,
+    Truck,
+    Users,
     PackageSearch,
     Settings,
     LogOut,
-    LineChart
+    LineChart,
+    Bell
 } from "lucide-react";
+import NotificationBell from "@/components/dashboard/NotificationBell";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ManmecUserProfile } from "@/lib/auth";
@@ -57,8 +59,17 @@ export default function MobileNavbar({ profile }: MobileNavbarProps) {
             { href: "/dashboard/warehouses", icon: <Warehouse size={20} />, label: "Bodegas" },
             { href: "/dashboard/shipments/new", icon: <PackageSearch size={20} />, label: "Recibir Carga" },
             { href: "/dashboard/fleet", icon: <Truck size={20} />, label: "Flota / Vehículos" },
-            { href: "/dashboard/stations", icon: <LayoutDashboard size={20} />, label: "Estaciones", category: "Config" },
-            { href: "/dashboard/team", icon: <Users size={20} />, label: "Equipo" }
+            { href: "/dashboard/ai-logs", icon: <BrainCircuit size={20} className="text-blue-400" />, label: "Logs IA (Beta)", category: "Configuración Base" },
+            { href: "/dashboard/settings/ai", icon: <BrainCircuit size={20} />, label: "Asistente IA" },
+            { href: "/dashboard/settings/alerts", icon: <Bell size={20} className="text-amber-400" />, label: "Alertas Proactivas" },
+            { href: "/dashboard/stations", icon: <LayoutDashboard size={20} />, label: "Estaciones de Servicio" },
+            { href: "/dashboard/team", icon: <Users size={20} />, label: "Equipo de trabajo" },
+        );
+    }
+
+    if (profile.role === "COMPANY_ADMIN") {
+        menuItems.push(
+            { href: "/dashboard/settings", icon: <Settings size={20} />, label: "Configuración", category: " " }
         );
     }
 
@@ -72,12 +83,15 @@ export default function MobileNavbar({ profile }: MobileNavbarProps) {
                     <span className="font-bold tracking-tight text-white">Manmec <span className="text-blue-500">IA</span></span>
                 </div>
                 
-                <button 
-                    onClick={() => setIsOpen(true)}
-                    className="p-2 text-slate-300 hover:text-white transition-colors bg-white/5 rounded-lg border border-white/10"
-                >
-                    <Menu size={24} />
-                </button>
+                <div className="flex items-center gap-2">
+                    <NotificationBell userId={profile.id} />
+                    <button
+                        onClick={() => setIsOpen(true)}
+                        className="p-2 text-slate-300 hover:text-white transition-colors bg-white/5 rounded-lg border border-white/10"
+                    >
+                        <Menu size={24} />
+                    </button>
+                </div>
             </header>
 
             <AnimatePresence>
@@ -111,7 +125,7 @@ export default function MobileNavbar({ profile }: MobileNavbarProps) {
                             </div>
 
                             <nav className="flex-1 overflow-y-auto p-4 space-y-2">
-                                {menuItems.map((item, i) => (
+                                {menuItems.map((item) => (
                                     <div key={item.href}>
                                         {item.category && (
                                             <p className="px-4 pt-4 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">
