@@ -18,6 +18,7 @@ import {
 import AiChatWidget from "@/components/dashboard/AiChatWidget";
 import MobileNavbar from "@/components/dashboard/MobileNavbar";
 import RealtimeSidebarLink from "@/components/dashboard/RealtimeSidebarLink";
+import NotificationBell from "@/components/dashboard/NotificationBell";
 
 export default async function DashboardLayout({
     children,
@@ -104,6 +105,11 @@ export default async function DashboardLayout({
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Navigation Móvil */}
                 <MobileNavbar profile={profile} />
+
+                {/* Header Desktop */}
+                <header className="hidden md:flex items-center justify-end px-8 py-3 border-b border-white/5 bg-black/10">
+                    <NotificationBell userId={profile.id} />
+                </header>
 
                 <main className="flex-1 p-4 md:p-8">
                     {children}
