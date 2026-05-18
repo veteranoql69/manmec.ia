@@ -1,4 +1,5 @@
 import { getGenAI, VISION_MODEL } from "./gemini";
+import { getLangfuse } from "./langfuse-client";
 
 export interface OcrShipmentItem {
     description: string;
@@ -52,27 +53,38 @@ export async function processDispatchNote(
         SOLO responde con el objeto JSON, nada más.
     `;
 
-    const result = await model.generateContent([
-        prompt,
-        {
-            inlineData: {
-                data: imageBuffer.toString("base64"),
-                mimeType,
-            },
-        },
-    ]);
-
-    const response = await result.response;
-    const text = response.text();
-
-    // Limpiar posibles bloques de código markdown ```json ... ```
-    const cleanJson = text.replace(/```json|```/g, "").trim();
+    const langfuse = getLangfuse();
+    const trace = langfuse.trace({ name: "shipment-ocr", metadata: { mimeType } });
+    const generation = trace.generation({
+        name: "gemini-ocr",
+        model: VISION_MODEL,
+        input: { mimeType, image_size_kb: Math.round(imageBuffer.length / 1024) },
+    });
 
     try {
-        return JSON.parse(cleanJson) as OcrShipmentResult;
+        const result = await model.generateContent([
+            prompt,
+            { inlineData: { data: imageBuffer.toString("base64"), mimeType } },
+        ]);
+
+        const response = result.response;
+        const text = response.text();
+        const usage = response.usageMetadata;
+        const cleanJson = text.replace(/```json|```/g, "").trim();
+        const parsed = JSON.parse(cleanJson) as OcrShipmentResult;
+
+        generation.end({
+            output: { supplier_name: parsed.supplier_name, dispatch_note_number: parsed.dispatch_note_number, items_count: parsed.items.length },
+            usage: usage ? { input: usage.promptTokenCount, output: usage.candidatesTokenCount, total: usage.totalTokenCount } : undefined,
+        });
+        await langfuse.flushAsync();
+
+        return parsed;
     } catch (e: unknown) {
+        generation.end({ level: "ERROR", statusMessage: String(e) });
+        await langfuse.flushAsync();
         const message = e instanceof Error ? e.message : "Error desconocido";
-        console.error("Error parseando JSON de Gemini:", text, message);
+        console.error("Error parseando JSON de Gemini:", message);
         throw new Error("No se pudo procesar la guía de forma estructurada.");
     }
 }
