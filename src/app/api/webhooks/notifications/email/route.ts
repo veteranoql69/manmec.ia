@@ -299,6 +299,9 @@ async function processEmailUnit(
 
             if (targetWoId) {
                 const repuestos = (metadata.repuestos || []) as any[];
+                let deductedCount = 0;
+                let skippedSkus: string[] = [];
+
                 for (const rep of repuestos) {
                     const { data: item } = await supabase.from("manmec_inventory_items")
                         .select("id")
@@ -346,19 +349,44 @@ async function processEmailUnit(
                                 reason: `IA Auto-Deduction (${parsedData.external_id}) via Email`
                             });
                             
-                            // Si la BD rebota el insert (ej: restricciones estrictas u otros problemas funcionales), alertamos.
                             if (moveError) {
+                                // Si la BD rebota el insert (ej: restricciones estrictas u otros problemas funcionales), alertamos.
                                 await supabase.from("manmec_work_order_timeline").insert({
                                     work_order_id: targetWoId,
                                     user_id: finalUserId,
                                     entry_type: 'warning',
-                                    content: `⚠️ Falló descuento de Repuesto en ${warehouseName} por error BD: ${moveError.message}`
+                                    content: `⚠️ Falló descuento de SKU ${rep.codigo} en ${warehouseName}: ${moveError.message}`
                                 });
+                                skippedSkus.push(rep.codigo);
+                            } else {
+                                deductedCount++;
                             }
+                        } else {
+                            // FIX: No se encontró ninguna bodega válida (ni móvil ni central). Registrar advertencia auditable.
+                            await supabase.from("manmec_work_order_timeline").insert({
+                                work_order_id: targetWoId,
+                                user_id: finalUserId,
+                                entry_type: 'warning',
+                                content: `⚠️ No se pudo descontar SKU ${rep.codigo}: No existe ninguna bodega activa (furgón o central) para esta organización. Crear una bodega en el módulo de inventario.`
+                            });
+                            skippedSkus.push(rep.codigo);
                         }
+                    } else {
+                        // FIX CRÍTICO: SKU no existe en el catálogo de inventario de esta organización.
+                        // Antes esta falla era completamente silenciosa. Ahora queda registrada y es auditable.
+                        await supabase.from("manmec_work_order_timeline").insert({
+                            work_order_id: targetWoId,
+                            user_id: finalUserId,
+                            entry_type: 'warning',
+                            content: `⚠️ Repuesto no descontado: SKU "${rep.codigo}" (${rep.nombre || rep.name || 'sin nombre'}) no existe en el catálogo de inventario. Agregar el SKU al módulo de inventario para habilitar el descuento automático en futuros cierres.`
+                        });
+                        skippedSkus.push(rep.codigo);
                     }
                 }
-                const timelineMsg = `${wasReactive ? '⚠️ OT Reactiva. ' : ''}Cerrada vía email. ${repuestos.length} repuestos detectados y pasados a módulo de descuentos.`;
+
+                // Mensaje de cierre con resumen detallado de qué fue descontado y qué no
+                const skippedMsg = skippedSkus.length > 0 ? ` ⚠️ ${skippedSkus.length} SKU(s) no descontados: [${skippedSkus.join(', ')}]. Ver advertencias arriba.` : '';
+                const timelineMsg = `${wasReactive ? '⚠️ OT Reactiva. ' : ''}Cerrada vía email. ${deductedCount}/${repuestos.length} repuesto(s) descontados de inventario.${skippedMsg}`;
                 await supabase.from("manmec_work_order_timeline").insert({
                     work_order_id: targetWoId,
                     user_id: finalUserId,
