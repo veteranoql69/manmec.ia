@@ -49,6 +49,23 @@ export interface ParsedEmailData {
   };
 }
 
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  const delays = [2000, 5000, 10000];
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      const isRetryable = err?.message?.includes("503") || err?.message?.includes("529") || err?.message?.includes("429") || err?.message?.includes("high demand");
+      if (!isRetryable || attempt === maxAttempts - 1) throw err;
+      console.warn(`[AI] Gemini 503/429, reintento ${attempt + 1}/${maxAttempts - 1} en ${delays[attempt]}ms`);
+      await new Promise(r => setTimeout(r, delays[attempt]));
+    }
+  }
+  throw lastError;
+}
+
 export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer, modelName: string = "models/gemini-2.5-flash", subject: string = ""): Promise<ParsedEmailData> {
   const model = genAI.getGenerativeModel({
     model: modelName,
@@ -171,13 +188,13 @@ export async function parseEmailWithIA(content: string, pdfBuffer?: Buffer, mode
   });
 
   try {
-    const result = await model.generateContent({
+    const result = await withRetry(() => model.generateContent({
       contents: [{ role: "user", parts: parts as unknown as Part[] }],
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: schema as any,
       }
-    });
+    }));
 
     const text = result.response.text();
     const parsed = JSON.parse(text) as ParsedEmailData;
