@@ -95,7 +95,7 @@ export function OTListClient({ initialOts }: Props) {
     // Función para saber si una OT se cerró recientemente (ej: última hora)
     const isRecentlyClosed = (ot: WorkOrder) => {
         if (!ot.updated_at) return false;
-        if (ot.status !== 'COMPLETED' && ot.status !== 'CLOSED') return false;
+        if (!['COMPLETED','CLOSED','CANCELLED'].includes(ot.status)) return false;
         
         // Si fue durante esta sesión (realtime)
         if (newClosures.has(ot.id)) return true;
@@ -122,9 +122,9 @@ export function OTListClient({ initialOts }: Props) {
 
         return {
             total: categoryOts.length,
-            pending: categoryOts.filter(o => o.status === 'PENDING').length,
-            inProgress: categoryOts.filter(o => o.status === 'IN_PROGRESS').length,
-            completed: categoryOts.filter(o => o.status === 'COMPLETED' || o.status === 'CLOSED').length,
+            pending: categoryOts.filter(o => ['PENDING','ASSIGNED','PAUSED'].includes(o.status)).length,
+            inProgress: categoryOts.filter(o => ['IN_PROGRESS','DERIVADO'].includes(o.status)).length,
+            completed: categoryOts.filter(o => ['COMPLETED','CLOSED','CANCELLED'].includes(o.status)).length,
         };
     }, [ots, mainCategory]);
 
@@ -173,15 +173,15 @@ export function OTListClient({ initialOts }: Props) {
 
             const matchesTab =
                 activeTab === 'ALL' ||
-                (activeTab === 'PENDING' && ot.status === 'PENDING') ||
-                (activeTab === 'IN_PROGRESS' && ot.status === 'IN_PROGRESS') ||
-                (activeTab === 'COMPLETED' && (ot.status === 'COMPLETED' || ot.status === 'CLOSED'));
+                (activeTab === 'PENDING' && ['PENDING','ASSIGNED','PAUSED'].includes(ot.status)) ||
+                (activeTab === 'IN_PROGRESS' && ['IN_PROGRESS','DERIVADO'].includes(ot.status)) ||
+                (activeTab === 'COMPLETED' && ['COMPLETED','CLOSED','CANCELLED'].includes(ot.status));
 
             return matchesSearch && matchesTab;
         }).sort((a, b) => {
             // Empujar las CERRADAS al fondo operativo
-            const aIsClosed = a.status === 'COMPLETED' || a.status === 'CLOSED';
-            const bIsClosed = b.status === 'COMPLETED' || b.status === 'CLOSED';
+            const aIsClosed = ['COMPLETED','CLOSED','CANCELLED'].includes(a.status);
+            const bIsClosed = ['COMPLETED','CLOSED','CANCELLED'].includes(b.status);
             
             if (aIsClosed && !bIsClosed) return 1;
             if (!aIsClosed && bIsClosed) return -1;
@@ -488,11 +488,21 @@ export function OTListClient({ initialOts }: Props) {
 
                                 <div className="flex md:flex-col items-center gap-5 justify-between md:pl-6 md:border-l border-white/5 h-full mt-4 md:mt-0 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0">
                                     <div className="flex flex-col items-end gap-1">
-                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${ot.status === 'COMPLETED' || ot.status === 'CLOSED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                                            ['COMPLETED','CLOSED'].includes(ot.status) ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                            ot.status === 'CANCELLED'   ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
                                             ot.status === 'IN_PROGRESS' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' :
-                                                'bg-white/5 text-slate-500 border border-white/10'
+                                            ot.status === 'DERIVADO'    ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
+                                            ot.status === 'PAUSED'      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                                            ot.status === 'ASSIGNED'    ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
+                                                                          'bg-white/5 text-slate-500 border border-white/10'
                                             }`}>
-                                            {ot.status === 'COMPLETED' || ot.status === 'CLOSED' ? 'Cerrada' : ot.status === 'IN_PROGRESS' ? 'En Sitio' : 'Espera'}
+                                            {['COMPLETED','CLOSED'].includes(ot.status) ? 'Cerrada' :
+                                             ot.status === 'CANCELLED'   ? 'Cancelada' :
+                                             ot.status === 'IN_PROGRESS' ? 'En Sitio' :
+                                             ot.status === 'DERIVADO'    ? 'Derivado' :
+                                             ot.status === 'PAUSED'      ? 'Pausada' :
+                                             ot.status === 'ASSIGNED'    ? 'Asignado' : 'Espera'}
                                         </span>
                                     </div>
                                     <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-blue-600/20 transition-all">

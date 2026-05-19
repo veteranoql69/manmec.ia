@@ -22,6 +22,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { OTStatusChanger } from "@/components/dashboard/ots/OTStatusChanger";
 
 interface TeamMember {
     role: string;
@@ -53,7 +54,7 @@ interface PageProps {
 
 export default async function OTDetailPage({ params }: PageProps) {
     const { id } = await params;
-    await requireRole("MECHANIC");
+    const profile = await requireRole("MECHANIC");
 
     let ot, resources;
     try {
@@ -162,10 +163,11 @@ export default async function OTDetailPage({ params }: PageProps) {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
                                 <p className="text-[10px] font-bold uppercase text-slate-500 tracking-widest mb-2">Estado Actual</p>
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-3 h-3 rounded-full ${ot.status === 'COMPLETED' ? 'bg-emerald-500' : ot.status === 'IN_PROGRESS' ? 'bg-blue-500 animate-pulse' : 'bg-slate-500'}`} />
-                                    <span className="font-black uppercase tracking-tight">{ot.status}</span>
-                                </div>
+                                <OTStatusChanger
+                                    otId={ot.id}
+                                    currentStatus={ot.status}
+                                    role={profile.role ?? ""}
+                                />
                             </div>
                             <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
                                 <p className="text-[10px] font-bold uppercase text-slate-500 tracking-widest mb-2">Fecha Solicitud</p>
